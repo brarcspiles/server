@@ -801,22 +801,22 @@ router.post('/send-invoice-email', async (req, res) => {
     //     port: 465, // Replace with the appropriate port
     //     secure: true, // true for 465, false for other ports
     //     auth: {
-    //       user: 'jdwebservices1@gmail.com',
+    //       user: 'canadianscrewpiles@gmail.com',
     //       pass: 'lpctmxmuoudgnopd'
     //     }
     //   });
     const transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
-            user: "jdwebservices1@gmail.com",
-            pass: "cwoxnbrrxvsjfbmr"
+            user: "canadianscrewpiles@gmail.com",
+            pass: "vhjcbemwmrynvmcr"
         },
     });
 
     const currencySign = getCurrencySign(currencyType);
 
     const mailOptions = {
-        from: 'jdwebservices1@gmail.com',
+        from: 'canadianscrewpiles@gmail.com',
         to: to.join(', '),
         bcc: bcc.join(', '),
         subject: `Invoice from ${companyName}`,
@@ -899,8 +899,8 @@ router.post('/send-deposit-email', async (req, res) => {
     const transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
-            user: "jdwebservices1@gmail.com",
-            pass: "cwoxnbrrxvsjfbmr"
+            user: "canadianscrewpiles@gmail.com",
+            pass: "vhjcbemwmrynvmcr"
         },
     });
     // const transporter = nodemailer.createTransport({
@@ -908,7 +908,7 @@ router.post('/send-deposit-email', async (req, res) => {
     //     port: 465, // Replace with the appropriate port
     //     secure: true, // true for 465, false for other ports
     //     auth: {
-    //       user: 'jdwebservices1@gmail.com',
+    //       user: 'canadianscrewpiles@gmail.com',
     //       pass: 'lpctmxmuoudgnopd'
     //     }
     //   });
@@ -916,7 +916,7 @@ router.post('/send-deposit-email', async (req, res) => {
     const currencySign = getCurrencySign(currencyType);
 
     const mailOptions = {
-        from: 'jdwebservices1@gmail.com',
+        from: 'canadianscrewpiles@gmail.com',
         to: to.join(', '),
         bcc: bcc.join(', '),
         subject: `Invoice from ${companyName}`,
@@ -999,8 +999,8 @@ router.post('/send-estimate-email', async (req, res) => {
     const transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
-            user: "jdwebservices1@gmail.com",
-            pass: "cwoxnbrrxvsjfbmr"
+            user: "canadianscrewpiles@gmail.com",
+            pass: "vhjcbemwmrynvmcr"
         },
     });
 
@@ -1009,7 +1009,7 @@ router.post('/send-estimate-email', async (req, res) => {
     //     port: 465, // Replace with the appropriate port
     //     secure: true, // true for 465, false for other ports
     //     auth: {
-    //       user: 'jdwebservices1@gmail.com',
+    //       user: 'canadianscrewpiles@gmail.com',
     //       pass: 'lpctmxmuoudgnopd'
     //     }
     //   });
@@ -1017,7 +1017,7 @@ router.post('/send-estimate-email', async (req, res) => {
     const currencySign = getCurrencySign(currencyType);
 
     const mailOptions = {
-        from: 'jdwebservices1@gmail.com',
+        from: 'canadianscrewpiles@gmail.com',
         to: to.join(', '),
         bcc: bcc.join(', '),
         subject: `Estimate from ${companyName}`,
@@ -1044,7 +1044,7 @@ router.post('/send-estimate-email', async (req, res) => {
                 </div>
                 <div style="margin: 20px 0px 10px;">
                     <p style="color:#222">This email contains a unique link just for you. Please do not share this email or link or others will have access to your document.</p>
-                    <a href="https://invoice-al.vercel.app/customersign?estimateId=${estimateId}" style="display:inline-block;padding:10px 20px;background-color:#4CAF50;color:#fff;text-decoration:none;border-radius:5px;">View this Estimate</a>
+                    <a href="https://cspiles.vercel.app/customersign?estimateId=${estimateId}" style="display:inline-block;padding:10px 20px;background-color:#4CAF50;color:#fff;text-decoration:none;border-radius:5px;">View this Estimate</a>
                 </div>
             </section>
             <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#f5f4f4; padding: 35px 30px; margin-bottom: 40px;">
@@ -1093,13 +1093,13 @@ router.post('/send-estimate-signed-email', async (req, res) => {
     const transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
-            user: "jdwebservices1@gmail.com",
-            pass: "cwoxnbrrxvsjfbmr"
+            user: "canadianscrewpiles@gmail.com",
+            pass: "vhjcbemwmrynvmcr"
         },
     });
 
     const mailOptions = {
-        from: 'jdwebservices1@gmail.com',
+        from: 'canadianscrewpiles@gmail.com',
         to: to,
         subject: 'Your document has been signed',
         html: `<html>
@@ -1391,8 +1391,8 @@ function sendWelcomeEmail(userEmail, name, isFirstTimeLogin) {
     const transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
-            user: "jdwebservices1@gmail.com",
-            pass: "cwoxnbrrxvsjfbmr"
+            user: "canadianscrewpiles@gmail.com",
+            pass: "vhjcbemwmrynvmcr"
         },
     });
     // const transporter = nodemailer.createTransport({
@@ -1400,7 +1400,7 @@ function sendWelcomeEmail(userEmail, name, isFirstTimeLogin) {
     //     port: 465, // Replace with the appropriate port
     //     secure: true, // true for 465, false for other ports
     //     auth: {
-    //       user: 'jdwebservices1@gmail.com',
+    //       user: 'canadianscrewpiles@gmail.com',
     //       pass: 'lpctmxmuoudgnopd'
     //     }
     //   });
@@ -1442,8 +1442,8 @@ router.post('/forgot-password', async (req, res) => {
         const transporter = nodemailer.createTransport({
             service: 'gmail',
             auth: {
-                user: "jdwebservices1@gmail.com",
-                pass: "cwoxnbrrxvsjfbmr"
+                user: "canadianscrewpiles@gmail.com",
+                pass: "vhjcbemwmrynvmcr"
             },
         });
         // const transporter = nodemailer.createTransport({
@@ -1451,7 +1451,7 @@ router.post('/forgot-password', async (req, res) => {
         //     port: 465, // Replace with the appropriate port
         //     secure: true, // true for 465, false for other ports
         //     auth: {
-        //       user: 'jdwebservices1@gmail.com',
+        //       user: 'canadianscrewpiles@gmail.com',
         //       pass: 'lpctmxmuoudgnopd'
         //     }
         //   });
@@ -3377,8 +3377,8 @@ function sendTeamWelcomeEmail(userEmail, name, isFirstTimeLogin, companyName) {
     const transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
-            user: "jdwebservices1@gmail.com",
-            pass: "cwoxnbrrxvsjfbmr"
+            user: "canadianscrewpiles@gmail.com",
+            pass: "vhjcbemwmrynvmcr"
         },
     });
     // const transporter = nodemailer.createTransport({
@@ -3386,13 +3386,13 @@ function sendTeamWelcomeEmail(userEmail, name, isFirstTimeLogin, companyName) {
     //     port: 465, // Replace with the appropriate port
     //     secure: true, // true for 465, false for other ports
     //     auth: {
-    //       user: 'jdwebservices1@gmail.com',
+    //       user: 'canadianscrewpiles@gmail.com',
     //       pass: 'lpctmxmuoudgnopd'
     //     }
     //   });
 
     const mailOptions = {
-        from: 'jdwebservices1@gmail.com',
+        from: 'canadianscrewpiles@gmail.com',
         to: userEmail,
         subject: subject,
         html: message,

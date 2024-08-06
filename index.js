@@ -19,7 +19,7 @@ job.start();
 const corsOptions = {
   origin: [
     "http://localhost:5173",
-    "https://invoice-al.vercel.app",
+    "https://cspiles.vercel.app",
   ],
   methods: "GET, POST, OPTIONS, PUT, DELETE",
   allowedHeaders: "Content-Type, Authorization, Origin, X-Requested-With, Accept"

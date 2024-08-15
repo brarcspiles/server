@@ -25,6 +25,8 @@ const Deposit = require('../models/Deposit');
 const Signature = require('../models/Signature')
 const Ownwesignature = require('../models/Ownwesignature')
 const CustomerSignatureSchema = require('../models/CustomerSignature')
+const WaiverSignatureSchema = require('../models/WaiverSignature')
+const WaiverSchema = require('../models/Waiver')
 const crypto = require('crypto');
 const bodyParser = require('body-parser');
 const nodemailer = require('nodemailer');
@@ -979,6 +981,163 @@ router.post('/send-deposit-email', async (req, res) => {
         res.status(500).json({ success: false, error: 'Failed to send email.' });
     }
 });
+
+// GET API: Fetch Waiver details by ID
+router.get('/waiver/:id', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        // Find the waiver by ID
+        const waiver = await WaiverSchema.findById(id);
+
+        if (!waiver) {
+            return res.status(404).json({ success: false, message: 'Waiver not found' });
+        }
+
+        // Return the waiver details
+        res.status(200).json({ success: true, waiver });
+    } catch (error) {
+        console.error('Error fetching waiver:', error);
+        res.status(500).json({ success: false, error: 'Failed to fetch waiver.' });
+    }
+});
+
+// PUT API: Update Waiver details by ID
+router.put('/waiver/:id', async (req, res) => {
+    const { id } = req.params;
+    const updateData = req.body; // This should contain the fields you want to update
+
+    try {
+        // Find the waiver by ID and update it
+        const updatedWaiver = await WaiverSchema.findByIdAndUpdate(id, updateData, { new: true });
+
+        if (!updatedWaiver) {
+            return res.status(404).json({ success: false, message: 'Waiver not found' });
+        }
+
+        // Return the updated waiver details
+        res.status(200).json({ success: true, waiver: updatedWaiver });
+    } catch (error) {
+        console.error('Error updating waiver:', error);
+        res.status(500).json({ success: false, error: 'Failed to update waiver.' });
+    }
+});
+
+
+router.get('/getAllWaivers', async (req, res) => {
+    const { userId } = req.query; // Get the userId from the query parameters
+  
+    try {
+      // Fetch waivers that belong to the specified userId
+      const waivers = await WaiverSchema.find({ userId: userId });
+  
+      if (waivers.length > 0) {
+        res.status(200).json(waivers); // Send the list of waivers as a JSON response
+      } else {
+        res.status(404).json({ message: 'No waivers found for this user' });
+      }
+    } catch (error) {
+      console.error('Error fetching waivers:', error);
+      res.status(500).json({ message: 'Server error while fetching waivers' });
+    }
+  });
+
+
+  
+// Add this route to update customer signature
+router.post('/addwaiversignature/:waiverId', async (req, res) => {
+    const { waiverId } = req.params;
+    const { waiversign, companyname, jobsiteaddress, printname, isAddSignature, date } = req.body;
+
+    try {
+        const waiverSignature = await WaiverSchema.findOneAndUpdate(
+            { _id: waiverId },  // Find the waiver document by its _id
+            {
+                waiversign,
+                waiverId,
+                
+            },
+            { new: true, upsert: false } // Return the updated document
+        );
+
+        if (waiverSignature) {
+            res.status(200).json({ message: 'Waiver signature updated successfully', waiverSignature });
+        } else {
+            res.status(404).json({ message: 'Waiver signature not found' });
+        }
+    } catch (error) {
+        console.error('Error updating Waiver signature:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+router.post('/send-waiver-request', async (req, res) => {
+const {to, userId} = req.body;
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: "canadianscrewpiles@gmail.com",
+        pass: "vhjcbemwmrynvmcr"
+    },
+});
+
+try {
+    
+
+    // Save data to Waiver collection
+    const waiver = new WaiverSchema({
+        waiveremail: to,
+        userId: userId,
+
+    });
+
+    const savedWaiver = await waiver.save();
+    const waiverId = savedWaiver._id; // The latest created ID
+    console.log('Waiver ID:', waiverId); // Print the ID in the server logs
+
+const mailOptions = {
+    from: 'canadianscrewpiles@gmail.com',
+    to: to,
+    subject: `Waiver Request from CANADIAN SCREW PILES & CONTRACTING LTD`,
+   
+    html: `<html>
+        <body style="background-color:#c5c1c187; margin-top: 40px; padding:20px 0px;">
+             <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#fff; padding: 15px 30px; margin-top: 40px;">
+                <div style="padding: 10px 0px;  text-align: center; font-weight: 500; color: #999999">
+                  
+
+                </div>
+                <div>
+                    <h1 style="margin-bottom:0px; font-size: 35px; color:#222">Waiver Request from CANADIAN SCREW PILES & CONTRACTING LTD </h1>
+                </div>
+                <div style="background-color:#f5f4f4; padding: 1px 20px; margin: 30px 0px 10px;">
+                    <p style="color:#222">content</p>
+                </div>
+                <div style="margin: 20px 0px 10px;">
+                    <p style="color:#222">This email contains a unique link just for you. Please do not share this email or link or others will have access to your document.</p>
+                    <a href="http://localhost:5173/waiversign?waiverId=${waiverId}" style="display:inline-block;padding:10px 20px;background-color:#4CAF50;color:#fff;text-decoration:none;border-radius:5px;">View Request</a>
+                </div>
+            </section>
+            <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#f5f4f4; padding: 35px 30px; margin-bottom: 40px;">
+                
+                <div>
+                   
+                </div>
+            </section>
+        </body>
+            </html>`
+};
+
+await transporter.sendMail(mailOptions);
+    console.log('Email sent successfully!');
+
+    res.status(200).json({ success: true, waiverId: waiverId });
+} catch (error) {
+    console.error('Error sending email:', error);
+    res.status(500).json({ success: false, error: 'Failed to send email.' });
+}
+
+})
 
 router.post('/send-estimate-email', async (req, res) => {
     const {

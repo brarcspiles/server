@@ -1082,13 +1082,10 @@ const transporter = nodemailer.createTransport({
 });
 
 try {
-    
-
     // Save data to Waiver collection
     const waiver = new WaiverSchema({
         waiveremail: to,
         userId: userId,
-
     });
 
     const savedWaiver = await waiver.save();
@@ -1100,19 +1097,32 @@ const mailOptions = {
     to: to,
     subject: `Waiver Request from CSPC LTD`,
     html: `<html>
-        <body style="background-color:#c5c1c187; margin-top: 40px; padding:20px 0px;">
-             <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#fff; padding: 15px 30px; margin-top: 40px;">
-
-                <div>
-                    <h1 style="margin-bottom:0px; font-size: 35px; color:#222">Waiver Request from CSPC LTD </h1>
-                </div>
-                <div style="margin: 20px 0px 10px;">
-                    <p style="color:#222">This email contains a unique link just for you. Please do not share this email or link or others will have access to your document.</p>
-                    <a href="https://cspiles.vercel.app/waiversign?waiverId=${waiverId}" style="display:inline-block;padding:10px 20px;background-color:#4CAF50;color:#fff;text-decoration:none;border-radius:5px;">View Request</a>
-                </div>
-            </section>
-        </body>
-            </html>`
+    <body style="background-color:#f9f9f9; margin:0; padding:0;">
+        <table width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9f9f9; padding:20px;">
+            <tr>
+                <td align="center">
+                    <table width="600" cellspacing="0" cellpadding="20" border="0" style="background-color:#ffffff; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.1);">
+                        <tr>
+                            <td style="text-align:center; border-bottom:2px solid #4CAF50;">
+                                <h1 style="font-family:Arial, sans-serif; color:#333;">Waiver Request from CSPC LTD</h1>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="font-family:Arial, sans-serif; color:#555;">
+                                <p>Hello,</p>
+                                <p>We have sent you a waiver request. Please review and sign the document using the link below. For security purposes, this link is unique to you and should not be shared.</p>
+                                <p><a href="https://cspiles.vercel.app/waiversign?waiverId=${waiverId}" style="display:inline-block; padding:10px 20px; background-color:#4CAF50; color:#ffffff; text-decoration:none; border-radius:5px;">Review Waiver Request</a></p>
+                                <p>If you have any questions or need assistance, please do not hesitate to contact us.</p>
+                                <p>Best regards,</p>
+                                <p>The CSPC LTD Team</p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+</html>`
 };
 
 await transporter.sendMail(mailOptions);

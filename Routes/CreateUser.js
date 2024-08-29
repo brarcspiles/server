@@ -1028,8 +1028,9 @@ router.get('/getAllWaivers', async (req, res) => {
     const { userId } = req.query; // Get the userId from the query parameters
   
     try {
-      // Fetch waivers that belong to the specified userId
-      const waivers = await WaiverSchema.find({ userId: userId });
+     // Fetch waivers that belong to the specified userId and sort them by createdAt in descending order
+    const waivers = await WaiverSchema.find({ userId: userId }).sort({ createdAt: -1 });
+
   
       if (waivers.length > 0) {
         res.status(200).json(waivers); // Send the list of waivers as a JSON response
@@ -1039,6 +1040,24 @@ router.get('/getAllWaivers', async (req, res) => {
     } catch (error) {
       console.error('Error fetching waivers:', error);
       res.status(500).json({ message: 'Server error while fetching waivers' });
+    }
+  });
+
+  router.delete('/deleteWaiver', async (req, res) => {
+    const { id } = req.query; // Get the waiver ID from the query parameters
+  
+    try {
+      // Find the waiver by ID and delete it
+      const deletedWaiver = await WaiverSchema.findByIdAndDelete(id);
+  
+      if (deletedWaiver) {
+        res.status(200).json({ message: 'Waiver deleted successfully' });
+      } else {
+        res.status(404).json({ message: 'Waiver not found' });
+      }
+    } catch (error) {
+      console.error('Error deleting waiver:', error);
+      res.status(500).json({ message: 'Server error while deleting waiver' });
     }
   });
 
@@ -2108,14 +2127,24 @@ router.get('/invoicedata/:userid', async (req, res) => {
     try {
         let userid = req.params.userid;
         let authtoken = req.headers.authorization;
+
         // Verify JWT token
         const decodedToken = jwt.verify(authtoken, jwrsecret);
         console.log(decodedToken);
-        // Find invoice data sorted by creation date in descending order
-        const invoicedata = await Invoice.find({ userid: userid }).sort({ createdAt: -1 });
+
+        // Find invoice data
+        const invoicedata = await Invoice.find({ userid: userid });
+
+        // Sort by numeric part of InvoiceNumber in descending order
+        invoicedata.sort((a, b) => {
+            const aNumber = parseInt(a.InvoiceNumber.replace(/^\D+/g, ''), 10);
+            const bNumber = parseInt(b.InvoiceNumber.replace(/^\D+/g, ''), 10);
+            return bNumber - aNumber; // Descending order
+        });
+
         res.json(invoicedata);
     } catch (error) {
-        console.error('Error fetching dashboard data:', error);
+        console.error('Error fetching invoice data:', error);
         // Handle token verification errors
         if (error.name === 'JsonWebTokenError') {
             return res.status(401).json({ message: 'Unauthorized: Invalid token' });
@@ -2124,6 +2153,7 @@ router.get('/invoicedata/:userid', async (req, res) => {
         res.status(500).json({ message: 'Internal server error' });
     }
 });
+
 
 router.get('/customerwisedata/:customeremail', async (req, res) => {
     try {

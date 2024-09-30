@@ -25,6 +25,7 @@ const Deposit = require('../models/Deposit');
 const Signature = require('../models/Signature')
 const Ownwesignature = require('../models/Ownwesignature')
 const CustomerSignatureSchema = require('../models/CustomerSignature')
+const ConformityReport = require('../models/conformityReport')
 const WaiverSignatureSchema = require('../models/WaiverSignature')
 const WaiverSchema = require('../models/Waiver')
 const crypto = require('crypto');
@@ -4182,6 +4183,81 @@ router.get('/getUserPreferences/:userid', async (req, res) => {
         res.status(500).json({ error: 'Failed to retrieve user preferences' });
     }
 });
+
+router.post('/conformityReport', async (req, res) => {
+    try {
+      // Destructure data from request body
+      const { clientAddress, file,project,date, canadianScrewPiles, bearingCapacity } = req.body;
+  
+      // Create a new conformity report document
+      const newReport = new ConformityReport({
+        clientAddress,
+        file,
+        project,
+        date,
+        canadianScrewPiles,
+        bearingCapacity
+      });
+  
+      // Save the new report to MongoDB
+      await newReport.save();
+  
+      // Respond with the created report
+      res.status(201).json({ message: 'Conformity Report Created', data: newReport });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Server Error', error });
+    }
+  });
+  
+  // @route  GET /api/conformityReport
+  // @desc   Get all conformity reports
+  router.get('/conformityReport', async (req, res) => {
+    try {
+      // Fetch all conformity reports
+      const reports = await ConformityReport.find().sort({ createdAt: -1 });
+      res.status(200).json(reports);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Server Error', error });
+    }
+  });
+  
+  // @route  GET /api/conformityReport/:id
+  // @desc   Get a single conformity report by ID
+  router.get('/conformityReport/:id', async (req, res) => {
+    try {
+      // Fetch the report by ID
+      const report = await ConformityReport.findById(req.params.id);
+  
+      if (!report) {
+        return res.status(404).json({ message: 'Conformity Report Not Found' });
+      }
+  
+      res.status(200).json(report);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Server Error', error });
+    }
+  });
+  
+  // @route  DELETE /api/conformityReport/:id
+  // @desc   Delete a conformity report by ID
+  router.delete('/conformityReport/:id', async (req, res) => {
+    try {
+      // Find the report by ID and delete it
+      const report = await ConformityReport.findByIdAndDelete(req.params.id);
+  
+      if (!report) {
+        return res.status(404).json({ message: 'Conformity Report Not Found' });
+      }
+  
+      res.status(200).json({ message: 'Conformity Report Deleted', data: report });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Server Error', error });
+    }
+  });
 
 
 module.exports = router;

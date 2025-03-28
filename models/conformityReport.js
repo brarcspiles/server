@@ -23,6 +23,7 @@ const ConformityReportSchema = new mongoose.Schema({
   file: { type: String, required: true }, // Client Address Field
   project: { type: String, required: true }, // Client Address Field
   date: { type: String, required: true }, // Client Address Field
+  email: { type: String }, // Optional field for invoice reference
   canadianScrewPiles: [CanadianScrewPilesSchema],  // Array of Canadian Screw Piles sections
   bearingCapacity: [BearingCapacitySchema],        // Array of Bearing Capacity sections
   createdAt: { type: Date, default: Date.now }     // Timestamp for when the report was created

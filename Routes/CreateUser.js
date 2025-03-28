@@ -884,7 +884,6 @@ router.post('/send-invoice-email', async (req, res) => {
 });
 
 
-module.exports = router;
 router.post('/send-deposit-email', async (req, res) => {
     const {
         to,
@@ -4187,13 +4186,14 @@ router.get('/getUserPreferences/:userid', async (req, res) => {
 router.post('/conformityReport', async (req, res) => {
     try {
       // Destructure data from request body
-      const { clientAddress, file,project,date, canadianScrewPiles, bearingCapacity } = req.body;
+      const { clientAddress, file,project,date,email, canadianScrewPiles, bearingCapacity } = req.body;
   
       // Create a new conformity report document
       const newReport = new ConformityReport({
         clientAddress,
         file,
         project,
+        email,
         date,
         canadianScrewPiles,
         bearingCapacity
@@ -4259,5 +4259,160 @@ router.post('/conformityReport', async (req, res) => {
     }
   });
 
+
+router.post('/sendConformityReportEmail', async (req, res) => {
+    try {
+        console.log('Request body:', req.body);
+        
+        const { to, bcc, pdfAttachment, reportId } = req.body;
+        
+        // Validate required fields
+        if (!pdfAttachment) {
+            return res.status(400).json({ success: false, error: 'No PDF attachment provided' });
+        }
+
+        // Extract base64 data (remove Data URI prefix if present)
+        const base64Data = pdfAttachment.split('base64,')[1] || pdfAttachment;
+
+        // Ensure 'to' is an array
+        const toEmails = Array.isArray(to) ? to : 
+                         (typeof to === 'string' ? JSON.parse(to) : []);
+
+        // Ensure 'bcc' is an array
+        const bccEmails = Array.isArray(bcc) ? bcc : 
+                         (bcc && typeof bcc === 'string' ? JSON.parse(bcc) : []);
+
+        if (!toEmails.length) {
+            return res.status(400).json({ success: false, error: 'No recipients specified' });
+        }
+
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: "canadianscrewpiles@gmail.com",
+                pass: "vhjcbemwmrynvmcr"
+            },
+        });
+    
+        const mailOptions = {
+            from: 'canadianscrewpiles@gmail.com',
+            to: toEmails.join(', '),
+            bcc: bccEmails.join(', '),
+            subject: `Conformity Report #${reportId} - Canadian Screw Piles`,
+            attachments: [
+                {
+                    filename: `ConformityReport_${reportId}.pdf`,
+                    content: base64Data,
+                    encoding: 'base64'
+                }
+            ],
+            html: `<!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Conformity Report - Canadian Screw Piles</title>
+                <style>
+                    body {
+                        background-color: #f5f5f5;
+                        margin: 0;
+                        padding: 20px 0;
+                        font-family: Arial, sans-serif;
+                        color: #333;
+                    }
+                    .email-container {
+                        width: 100%;
+                        max-width: 600px;
+                        margin: 0 auto;
+                        background-color: #ffffff;
+                        border-radius: 8px;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    }
+                    .header {
+                        padding: 20px;
+                        text-align: center;
+                        border-bottom: 1px solid #eeeeee;
+                    }
+                    .content {
+                        padding: 25px;
+                    }
+                    .report-details {
+                        background-color: #f9f9f9;
+                        padding: 20px;
+                        border-radius: 6px;
+                        margin-bottom: 25px;
+                    }
+                    .footer {
+                        padding: 20px;
+                        text-align: center;
+                        background-color: #f5f5f5;
+                        border-top: 1px solid #eeeeee;
+                        font-size: 12px;
+                        color: #777777;
+                    }
+                    .btn {
+                        display: inline-block;
+                        padding: 12px 24px;
+                        background-color: #007BFF;
+                        color: white;
+                        text-decoration: none;
+                        border-radius: 4px;
+                        font-weight: bold;
+                        margin: 15px 0;
+                    }
+                    .signature {
+                        margin-top: 30px;
+                        border-top: 1px solid #eeeeee;
+                        padding-top: 20px;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="email-container">
+                    <div class="header">
+                        <h1 style="color: #007BFF; margin-bottom: 5px;">Canadian Screw Piles</h1>
+                        <p style="margin-top: 0; color: #666666;">Unit #101 3425 29 St NE Calgary, AB</p>
+                    </div>
+                    
+                    <div class="content">
+                        <h2 style="margin-top: 0;">Conformity Report #${reportId}</h2>
+                        <p>Dear Recipient,</p>
+                        
+                        <div class="report-details">
+                            <p>Please find attached the Conformity Report for your project:</p>
+                        
+                            
+                           
+                        </div>
+                        
+                        <p>This email contains sensitive information. Please do not share it with unauthorized parties.</p>
+                        
+                        <div class="signature">
+                            <p>Sincerely,</p>
+                            <img src="cid:signature" alt="Signature" style="height: 50px;">
+                            <p>Canadian Screw Piles Team</p>
+                            <p>Phone: (403) - 439 - 7700</p>
+                        </div>
+                    </div>
+                    
+                    <div class="footer">
+                        <p>© ${new Date().getFullYear()} Canadian Screw Piles. All rights reserved.</p>
+                        <p>
+                            <a href="#" style="margin: 0 10px; color: #007BFF; text-decoration: none;">Website</a>
+                            <a href="#" style="margin: 0 10px; color: #007BFF; text-decoration: none;">Contact Us</a>
+                        </p>
+                    </div>
+                </div>
+            </body>
+            </html>`,
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log('Email sent successfully!');
+        res.status(200).json({ success: true });
+    } catch (error) {
+        console.error('Error sending email:', error);
+        res.status(500).json({ success: false, error: 'Failed to send email.' });
+    }
+});
 
 module.exports = router;

@@ -10,6 +10,7 @@ const jwrsecret = "MYNameisJashandeepSInghjoharmukts"
 const bcrypt = require("bcryptjs");
 const Category = require('../models/Category')
 const Subcategory = require('../models/Subcategory')
+const LocationModel = require('../models/Location');
 const Itemlist = require('../models/Itemlist')
 const Menu = require('../models/Menu')
 const WeeklyOffers = require('../models/WeeklyOffers')
@@ -1795,6 +1796,39 @@ router.post('/clockout', async (req, res) => {
         res.status(500).json({ message: 'Internal server error' });
     }
 });
+router.post('/trackLocation', async (req, res) => {
+    const { userid, lat, lng } = req.body;
+
+    try {
+        const newLocation = new LocationModel({
+            userid: userid,
+            lat: lat,
+            lng: lng,
+            timestamp: Date.now()  // Call Date.now() to get the current timestamp
+        });
+
+        console.log(newLocation, "update");
+        await newLocation.save(); // Save to the database
+        res.status(201).json({ message: 'Location saved successfully' });
+    } catch (error) {
+        console.error('Error saving location data:', error);
+        res.status(500).json({ message: 'Error saving location data' });
+    }
+});
+
+router.get('/getUserLocations/:userid', async (req, res) => {
+    const { userid } = req.params;
+
+    try {
+        const locations = await LocationModel.find({ userid }); // Find all locations for the given user ID
+        res.json(locations); // Send back the locations
+    } catch (error) {
+        console.error('Error fetching user locations:', error);
+        res.status(500).json({ message: 'Error fetching user locations' });
+    }
+});
+
+
 
 router.get('/userEntries/:userid', async (req, res) => {
     try {

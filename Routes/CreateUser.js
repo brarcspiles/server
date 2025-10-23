@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+require('dotenv').config();
 const momentTimezone = require('moment-timezone');
 const moment = require('moment');
 const User = require('../models/User');
@@ -35,18 +36,26 @@ const nodemailer = require('nodemailer');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const axios = require("axios");
 
-const getCurrencySign = (currencyType) => {
-    switch (currencyType) {
-        case 'AUD':
-            return '$';
-        case 'CAD':
-            return 'C$';
-        case 'INR':
-        default:
-            return '₹';
-    }
-};
+
+// const getCurrencySign = (currencyType) => {
+//     switch (currencyType) {
+//         case 'AUD':
+//             return '$';
+//         case 'CAD':
+//             return 'C$';
+//         case 'INR':
+//         default:
+//             return '₹';
+//     }
+// };
+
+const getCurrencySign = (currency) => {
+    const map = { USD: '$', CAD: '$', GBP: '£', EUR: '€', INR: '₹' };
+    if (!currency) return '';
+    return map[currency.toUpperCase()] || currency;
+  };
 
 
 router.get('/check-signature/:ownerId', (req, res) => {
@@ -786,8 +795,114 @@ router.get('/customDateReceivedAmount/:userid', async (req, res) => {
     }
 });
 
-router.post('/send-invoice-email', async (req, res) => {
-    const {
+// router.post('/send-invoice-email', async (req, res) => {
+//     const {
+//         to,
+//         bcc,
+//         content,
+//         companyName,
+//         pdfAttachment,
+//         customdate,
+//         duedate,
+//         InvoiceNumber,
+//         amountdue,
+//         currencyType,
+//         amountdue1
+//     } = req.body;
+//     // const transporter = nodemailer.createTransport({
+//     //     host: 'smtp.hostinger.com', // Replace with your hosting provider's SMTP server
+//     //     port: 465, // Replace with the appropriate port
+//     //     secure: true, // true for 465, false for other ports
+//     //     auth: {
+//     //       user: 'canadianscrewpiles@gmail.com',
+//     //       pass: 'lpctmxmuoudgnopd'
+//     //     }
+//     //   });
+//     const transporter = nodemailer.createTransport({
+//         service: 'gmail',
+//         auth: {
+//             user: "canadianscrewpiles@gmail.com",
+//             pass: "vhjcbemwmrynvmcr"
+//         },
+//     });
+
+//     const currencySign = getCurrencySign(currencyType);
+
+//     const mailOptions = {
+//         from: 'canadianscrewpiles@gmail.com',
+//         to: to.join(', '),
+//         bcc: bcc.join(', '),
+//         subject: `Invoice from ${companyName}`,
+//         attachments: [
+//             {
+//                 filename: `Invoice #${InvoiceNumber}.pdf`,
+//                 content: pdfAttachment.split(';base64,')[1], // Extract base64 content
+//                 encoding: 'base64',
+//             }
+//         ],
+//         html: `<html>
+//         <body style="background-color:#c5c1c187; margin-top: 40px; padding:20px 0px;">
+//              <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#fff; padding: 15px 30px; margin-top: 40px;">
+//                 <div style="padding: 10px 0px;  text-align: center; font-weight: 500; color: #999999">
+//                     <p style="margin-bottom:0px">${customdate}</p>
+//                     <p style="margin-top: 0px;">Invoice #${InvoiceNumber}</p>
+//                 </div>
+//                 <div>
+//                     <h1 style="margin-bottom:0px; font-size: 35px; color:#222">Invoice from ${companyName}</h1>
+//                     <h1 style="margin: 0px; font-size: 35px; color:#222">${currencySign}${amountdue1}</h1>
+//                     <p style="margin-top: 0px; color:#222">Due: ${duedate}</p>
+//                 </div>
+//                 <div style="background-color:#f5f4f4; padding: 1px 20px; margin: 30px 0px 10px;">
+//                     <p style="color:#222">${content}</p>
+//                 </div>
+//                 <div style="margin: 20px 0px 10px;">
+//                     <p style="color:#222">This email contains a unique link just for you. Please do not share this email or link or others will have access to your document.</p>
+//                 </div>
+//             </section>
+//             <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#f5f4f4; padding: 35px 30px; margin-bottom: 40px;">
+//                 <div>
+//                     <p style="font-size: 15px; color:#222">Make your invoice</p>
+//                     <h1 style="font-size: 35px; margin-bottom: 0; margin-top: 0; color:#222">INVOICE</h1>
+//                 </div>
+//                 <div>
+//                     <ul style="text-align: center;display: inline-flex;list-style:none;padding-left:0px">
+//                         <li>
+//                             <a href="">
+//                                 <img src="https://static.xx.fbcdn.net/rsrc.php/yb/r/hLRJ1GG_y0J.ico" alt="facebook icon" style="margin: 0px 5px;">
+//                             </a>
+//                         </li>
+//                         <li>
+//                             <a href="">
+//                                 <img src="https://static.cdninstagram.com/rsrc.php/y4/r/QaBlI0OZiks.ico" alt="instagram icon" style="margin: 0px 5px;">
+//                             </a>
+//                         </li>
+//                     </ul>
+//                 </div>
+//             </section>
+//         </body>
+//             </html>`,
+//     };
+
+//     try {
+//         await transporter.sendMail(mailOptions);
+//         console.log('Email sent successfully!');
+//         res.status(200).json({ success: true });
+//     } catch (error) {
+//         console.error('Error sending email:', error);
+//         res.status(500).json({ success: false, error: 'Failed to send email.' });
+//     }
+// });
+
+router.post("/send-invoice-email", async (req, res) => {
+
+    console.log(process.env.SMTP_HOST ,"process.env.SMTP_HOST");
+    console.log(process.env.SMTP_PORT ,"process.env.SMTP_PORT");
+    console.log(process.env.SMTP_USER ,"process.env.SMTP_USER");
+    console.log(process.env.SMTP_PASS ,"process.env.SMTP_PASS");
+    console.log(process.env.SMTP_CRYPTO ,"process.env.SMTP_CRYPTO");
+    
+    try {
+      const {
         to,
         bcc,
         content,
@@ -796,194 +911,456 @@ router.post('/send-invoice-email', async (req, res) => {
         customdate,
         duedate,
         InvoiceNumber,
+        invoiceId,
+        ownerId,
         amountdue,
         currencyType,
-        amountdue1
-    } = req.body;
-    // const transporter = nodemailer.createTransport({
-    //     host: 'smtp.hostinger.com', // Replace with your hosting provider's SMTP server
-    //     port: 465, // Replace with the appropriate port
-    //     secure: true, // true for 465, false for other ports
-    //     auth: {
-    //       user: 'canadianscrewpiles@gmail.com',
-    //       pass: 'lpctmxmuoudgnopd'
-    //     }
-    //   });
-    const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: "canadianscrewpiles@gmail.com",
-            pass: "vhjcbemwmrynvmcr"
-        },
-    });
-
-    const currencySign = getCurrencySign(currencyType);
-
-    const mailOptions = {
-        from: 'canadianscrewpiles@gmail.com',
-        to: to.join(', '),
-        bcc: bcc.join(', '),
+        amountdue1,
+      } = req.body;
+//   user: "canadianscrewpiles@gmail.com",
+//             pass: "vhjcbemwmrynvmcr"
+      // SMTP credentials — stored in your Render environment
+      const smtpHost = process.env.SMTP_HOST;
+      const smtpPort = process.env.SMTP_PORT;
+      const smtpUser = process.env.SMTP_USER;
+      const smtpPass = process.env.SMTP_PASS;
+      const smtpCrypto = process.env.SMTP_CRYPTO;
+  
+      // Hostinger endpoint
+      const phpEndpoint =
+        process.env.HOSTINGER_MAILER_URL ||
+        "https://jdwebservices.com/demo/smtp/sendemail.php";
+  
+      // API key — must match the .smtp_api_key file on Hostinger
+      const apiKey =
+        process.env.HOSTINGER_API_KEY || "MY_SUPER_SECRET_EMAIL_KEY_92x8HD!";
+  
+      // Build email HTML (you can replace this with your existing HTML)
+      const html = `
+        <html>
+          <body style="background-color:#c5c1c187; margin-top: 40px; padding:20px 0px;">
+               <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#fff; padding: 15px 30px; margin-top: 40px;">
+                  <div style="padding: 10px 0px;  text-align: center; font-weight: 500; color: #999999">
+                      <p style="margin-bottom:0px">${customdate}</p>
+                      <p style="margin-top: 0px;">Invoice #${InvoiceNumber}</p>
+                  </div>
+                  <div>
+                      <h1 style="margin-bottom:0px; font-size: 35px; color:#222">Invoice from ${companyName}</h1>
+                      <h1 style="margin: 0px; font-size: 35px; color:#222">${currencyType}${amountdue1}</h1>
+                      <p style="margin-top: 0px; color:#222">Due: ${duedate}</p>
+                  </div>
+                  <div style="background-color:#f5f4f4; padding: 1px 20px; margin: 30px 0px 10px;">
+                      <p style="color:#222">${content}</p>
+                  </div>
+                  <div style="margin: 20px 0px 10px;">
+                      <p style="color:#222">This email contains a unique link just for you. Please do not share this email or link or others will have access to your document.</p>
+                      <a href="https://immaculate-beta.vercel.app/customersigninvoice?invoiceId=${invoiceId}" style="display:inline-block;padding:10px 20px;background-color:#4CAF50;color:#fff;text-decoration:none;border-radius:5px;">View this Invoice</a>
+                  </div>
+              </section>
+              <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#f5f4f4; padding: 35px 30px; margin-bottom: 40px;">
+                  <div>
+                      <p style="font-size: 15px; color:#222">Make your invoice</p>
+                      <h1 style="font-size: 35px; margin-bottom: 0; margin-top: 0; color:#222">INVOICE</h1>
+                  </div>
+                  <div>
+                      <ul style="text-align: center;display: inline-flex;list-style:none;padding-left:0px">
+                          <li>
+                              <a href="">
+                                  <img src="https://static.xx.fbcdn.net/rsrc.php/yb/r/hLRJ1GG_y0J.ico" alt="facebook icon" style="margin: 0px 5px;">
+                              </a>
+                          </li>
+                          <li>
+                              <a href="">
+                                  <img src="https://static.cdninstagram.com/rsrc.php/y4/r/QaBlI0OZiks.ico" alt="instagram icon" style="margin: 0px 5px;">
+                              </a>
+                          </li>
+                      </ul>
+                  </div>
+              </section>
+          </body>
+              </html>
+      `;
+  
+      const payload = {
+        smtpHost,
+        smtpPort,
+        smtpUser,
+        smtpPass,
+        smtpCrypto,
+        fromEmail: smtpUser,
+        fromName: companyName || "Your Company",
+        to,
+        bcc,
         subject: `Invoice from ${companyName}`,
+        html,
         attachments: [
-            {
-                filename: `Invoice #${InvoiceNumber}.pdf`,
-                content: pdfAttachment.split(';base64,')[1], // Extract base64 content
-                encoding: 'base64',
-            }
+          {
+            filename: `Invoice #${InvoiceNumber}.pdf`,
+            contentBase64: pdfAttachment, // base64 data:application/pdf;base64,...
+          },
         ],
-        html: `<html>
-        <body style="background-color:#c5c1c187; margin-top: 40px; padding:20px 0px;">
-             <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#fff; padding: 15px 30px; margin-top: 40px;">
-                <div style="padding: 10px 0px;  text-align: center; font-weight: 500; color: #999999">
-                    <p style="margin-bottom:0px">${customdate}</p>
-                    <p style="margin-top: 0px;">Invoice #${InvoiceNumber}</p>
-                </div>
-                <div>
-                    <h1 style="margin-bottom:0px; font-size: 35px; color:#222">Invoice from ${companyName}</h1>
-                    <h1 style="margin: 0px; font-size: 35px; color:#222">${currencySign}${amountdue1}</h1>
-                    <p style="margin-top: 0px; color:#222">Due: ${duedate}</p>
-                </div>
-                <div style="background-color:#f5f4f4; padding: 1px 20px; margin: 30px 0px 10px;">
-                    <p style="color:#222">${content}</p>
-                </div>
-                <div style="margin: 20px 0px 10px;">
-                    <p style="color:#222">This email contains a unique link just for you. Please do not share this email or link or others will have access to your document.</p>
-                </div>
-            </section>
-            <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#f5f4f4; padding: 35px 30px; margin-bottom: 40px;">
-                <div>
-                    <p style="font-size: 15px; color:#222">Make your invoice</p>
-                    <h1 style="font-size: 35px; margin-bottom: 0; margin-top: 0; color:#222">INVOICE</h1>
-                </div>
-                <div>
-                    <ul style="text-align: center;display: inline-flex;list-style:none;padding-left:0px">
-                        <li>
-                            <a href="">
-                                <img src="https://static.xx.fbcdn.net/rsrc.php/yb/r/hLRJ1GG_y0J.ico" alt="facebook icon" style="margin: 0px 5px;">
-                            </a>
-                        </li>
-                        <li>
-                            <a href="">
-                                <img src="https://static.cdninstagram.com/rsrc.php/y4/r/QaBlI0OZiks.ico" alt="instagram icon" style="margin: 0px 5px;">
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-            </section>
-        </body>
-            </html>`,
-    };
-
-    try {
-        await transporter.sendMail(mailOptions);
-        console.log('Email sent successfully!');
-        res.status(200).json({ success: true });
-    } catch (error) {
-        console.error('Error sending email:', error);
-        res.status(500).json({ success: false, error: 'Failed to send email.' });
+      };
+  
+      const resp = await axios.post(phpEndpoint, payload, {
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-KEY": apiKey,
+        },
+        timeout: 30000,
+      });
+  
+      if (resp.data && resp.data.success) {
+        return res.status(200).json({ success: true });
+      } else {
+        return res
+          .status(500)
+          .json({ success: false, error: resp.data || "Unknown response from PHP" });
+      }
+    } catch (err) {
+    // Detailed Axios / Network error logging
+    console.error("⚠️ Error calling Hostinger sendemail:");
+    
+    // General error message
+    console.error("Message:", err.message);
+    
+    // Axios error code (e.g., ECONNREFUSED, ETIMEDOUT)
+    if (err.code) console.error("Code:", err.code);
+  
+    // Axios config info
+    if (err.config && err.config.url) {
+      console.error("Request URL:", err.config.url);
     }
-});
+  
+    // If we got an HTTP response back from Hostinger
+    if (err.response) {
+      console.error("Status:", err.response.status);
+      console.error("Status Text:", err.response.statusText);
+      console.error("Headers:", err.response.headers);
+      console.error("Response Data:", err.response.data);
+    } else {
+      // If no HTTP response (network / timeout / DNS issue)
+      console.error("No response received from Hostinger (network or timeout).");
+    }
+  
+    // Return user-friendly info to client
+    return res.status(500).json({
+      success: false,
+      error: err.message || "Failed to contact Hostinger mailer",
+      details: {
+        code: err.code || null,
+        status: err.response ? err.response.status : null,
+        data: err.response ? err.response.data : null,
+      },
+    });
+  }
+  });
 
+
+// router.post('/send-deposit-email', async (req, res) => {
+//     const {
+//         to,
+//         bcc,
+//         content,
+//         companyName,
+//         pdfAttachment,
+//         customdate,
+//         duedate,
+//         depositamount,
+//         InvoiceNumber,
+//         currencyType,
+//     } = req.body;
+
+//     const transporter = nodemailer.createTransport({
+//         service: 'gmail',
+//         auth: {
+//             user: "canadianscrewpiles@gmail.com",
+//             pass: "vhjcbemwmrynvmcr"
+//         },
+//     });
+//     // const transporter = nodemailer.createTransport({
+//     //     host: 'smtp.hostinger.com', // Replace with your hosting provider's SMTP server
+//     //     port: 465, // Replace with the appropriate port
+//     //     secure: true, // true for 465, false for other ports
+//     //     auth: {
+//     //       user: 'canadianscrewpiles@gmail.com',
+//     //       pass: 'lpctmxmuoudgnopd'
+//     //     }
+//     //   });
+
+//     const currencySign = getCurrencySign(currencyType);
+
+//     const mailOptions = {
+//         from: 'canadianscrewpiles@gmail.com',
+//         to: to.join(', '),
+//         bcc: bcc.join(', '),
+//         subject: `Invoice from ${companyName}`,
+//         attachments: [
+//             {
+//                 filename: `Invoice #${InvoiceNumber}.pdf`,
+//                 content: pdfAttachment.split(';base64,')[1], // Extract base64 content
+//                 encoding: 'base64',
+//             }
+//         ],
+//         html: `<html>
+//         <body style="background-color:#c5c1c187; margin-top: 40px; padding:20px 0px;">
+//              <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#fff; padding: 15px 30px; margin-top: 40px;">
+//                 <div style="padding: 10px 0px;  text-align: center; font-weight: 500; color: #999999">
+//                     <p style="margin-bottom:0px">${customdate}</p>
+//                     <p style="margin-top: 0px;">Invoice #${InvoiceNumber}</p>
+//                 </div>
+//                 <div>
+//                     <h1 style="margin-bottom:0px; font-size: 35px; color:#222">Invoice from ${companyName}</h1>
+//                     <h1 style="margin: 0px; font-size: 35px; color:#222">${currencySign}${depositamount}</h1>
+//                     <p style="margin-top: 0px; color:#222">Due: ${duedate}</p>
+//                 </div>
+//                 <div style="background-color:#f5f4f4; padding: 1px 20px; margin: 30px 0px 10px;">
+//                     <p style="color:#222">${content}</p>
+//                 </div>
+//                 <div style="margin: 20px 0px 10px;">
+//                     <p style="color:#222">This email contains a unique link just for you. Please do not share this email or link or others will have access to your document.</p>
+//                 </div>
+//             </section>
+//             <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#f5f4f4; padding: 35px 30px; margin-bottom: 40px;">
+//                 <div>
+//                     <p style="font-size: 15px; color:#222">Make your invoice</p>
+//                     <h1 style="font-size: 35px; margin-bottom: 0; margin-top: 0; color:#222">INVOICE</h1>
+//                 </div>
+//                 <div>
+//                     <ul style="text-align: center;display: inline-flex;list-style:none;padding-left:0px">
+//                         <li>
+//                             <a href="">
+//                                 <img src="https://static.xx.fbcdn.net/rsrc.php/yb/r/hLRJ1GG_y0J.ico" alt="facebook icon" style="margin: 0px 5px;">
+//                             </a>
+//                         </li>
+//                         <li>
+//                             <a href="">
+//                                 <img src="https://static.cdninstagram.com/rsrc.php/y4/r/QaBlI0OZiks.ico" alt="instagram icon" style="margin: 0px 5px;">
+//                             </a>
+//                         </li>
+//                     </ul>
+//                 </div>
+//             </section>
+//         </body>
+//             </html>`,
+//     };
+
+//     try {
+//         await transporter.sendMail(mailOptions);
+//         console.log('Email sent successfully!');
+//         res.status(200).json({ success: true });
+//     } catch (error) {
+//         console.error('Error sending email:', error);
+//         res.status(500).json({ success: false, error: 'Failed to send email.' });
+//     }
+// });
+
+// GET API: Fetch Waiver details by ID
 
 router.post('/send-deposit-email', async (req, res) => {
     const {
-        to,
-        bcc,
-        content,
-        companyName,
-        pdfAttachment,
-        customdate,
-        duedate,
-        depositamount,
-        InvoiceNumber,
-        currencyType,
+      to,
+      bcc,
+      content,
+      companyName,
+      pdfAttachment,
+      customdate,
+      duedate,
+      depositamount,
+      InvoiceNumber,
+      currencyType,
     } = req.body;
-
-    const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: "canadianscrewpiles@gmail.com",
-            pass: "vhjcbemwmrynvmcr"
-        },
-    });
-    // const transporter = nodemailer.createTransport({
-    //     host: 'smtp.hostinger.com', // Replace with your hosting provider's SMTP server
-    //     port: 465, // Replace with the appropriate port
-    //     secure: true, // true for 465, false for other ports
-    //     auth: {
-    //       user: 'canadianscrewpiles@gmail.com',
-    //       pass: 'lpctmxmuoudgnopd'
-    //     }
-    //   });
-
-    const currencySign = getCurrencySign(currencyType);
-
-    const mailOptions = {
-        from: 'canadianscrewpiles@gmail.com',
-        to: to.join(', '),
-        bcc: bcc.join(', '),
-        subject: `Invoice from ${companyName}`,
-        attachments: [
-            {
-                filename: `Invoice #${InvoiceNumber}.pdf`,
-                content: pdfAttachment.split(';base64,')[1], // Extract base64 content
-                encoding: 'base64',
-            }
-        ],
-        html: `<html>
-        <body style="background-color:#c5c1c187; margin-top: 40px; padding:20px 0px;">
-             <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#fff; padding: 15px 30px; margin-top: 40px;">
-                <div style="padding: 10px 0px;  text-align: center; font-weight: 500; color: #999999">
-                    <p style="margin-bottom:0px">${customdate}</p>
-                    <p style="margin-top: 0px;">Invoice #${InvoiceNumber}</p>
-                </div>
-                <div>
-                    <h1 style="margin-bottom:0px; font-size: 35px; color:#222">Invoice from ${companyName}</h1>
-                    <h1 style="margin: 0px; font-size: 35px; color:#222">${currencySign}${depositamount}</h1>
-                    <p style="margin-top: 0px; color:#222">Due: ${duedate}</p>
-                </div>
-                <div style="background-color:#f5f4f4; padding: 1px 20px; margin: 30px 0px 10px;">
-                    <p style="color:#222">${content}</p>
-                </div>
-                <div style="margin: 20px 0px 10px;">
-                    <p style="color:#222">This email contains a unique link just for you. Please do not share this email or link or others will have access to your document.</p>
-                </div>
-            </section>
-            <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#f5f4f4; padding: 35px 30px; margin-bottom: 40px;">
-                <div>
-                    <p style="font-size: 15px; color:#222">Make your invoice</p>
-                    <h1 style="font-size: 35px; margin-bottom: 0; margin-top: 0; color:#222">INVOICE</h1>
-                </div>
-                <div>
-                    <ul style="text-align: center;display: inline-flex;list-style:none;padding-left:0px">
-                        <li>
-                            <a href="">
-                                <img src="https://static.xx.fbcdn.net/rsrc.php/yb/r/hLRJ1GG_y0J.ico" alt="facebook icon" style="margin: 0px 5px;">
-                            </a>
-                        </li>
-                        <li>
-                            <a href="">
-                                <img src="https://static.cdninstagram.com/rsrc.php/y4/r/QaBlI0OZiks.ico" alt="instagram icon" style="margin: 0px 5px;">
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-            </section>
-        </body>
-            </html>`,
-    };
-
-    try {
-        await transporter.sendMail(mailOptions);
-        console.log('Email sent successfully!');
-        res.status(200).json({ success: true });
-    } catch (error) {
-        console.error('Error sending email:', error);
-        res.status(500).json({ success: false, error: 'Failed to send email.' });
+  
+    // Basic required checks
+    if (!to || !pdfAttachment || !InvoiceNumber) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: to, pdfAttachment, or InvoiceNumber.',
+      });
     }
-});
+  
+    // Normalize recipients (allow array or string)
+    const toStr = Array.isArray(to) ? to.join(', ') : String(to || '');
+    const bccStr = Array.isArray(bcc) ? bcc.join(', ') : (bcc ? String(bcc) : undefined);
+  
+    // Normalize base64 attachment (strip data:...;base64, if present)
+    const base64Match = typeof pdfAttachment === 'string' && pdfAttachment.match(/base64,(.*)$/);
+    const attachmentBase64 = base64Match ? base64Match[1] : pdfAttachment;
+  
+    // env-driven config
+    const smtpHost = process.env.SMTP_HOST || process.env.SMTP_SERVICE_HOST; // e.g. smtp.gmail.com or hostinger smtp
+    const smtpPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined; // e.g. 587 or 465
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+    const smtpCrypto = (process.env.SMTP_CRYPTO || 'tls').toLowerCase(); // 'tls' | 'ssl' | 'starttls' etc.
+  
+    const phpEndpoint = process.env.HOSTINGER_MAILER_URL; // optional
+    const apiKey = process.env.HOSTINGER_API_KEY;
+  
+    const filename = `Invoice-${InvoiceNumber}.pdf`;
+    const subject = `Invoice from ${companyName || 'Your Company'}`;
+  
+    // Build HTML (kept same as your original)
+    const currencySign = getCurrencySign(currencyType);
+    const html = `
+      <html>
+      <body style="background-color:#c5c1c187; margin-top: 40px; padding:20px 0px;">
+           <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#fff; padding: 15px 30px; margin-top: 40px;">
+              <div style="padding: 10px 0px;  text-align: center; font-weight: 500; color: #999999">
+                  <p style="margin-bottom:0px">${customdate || ''}</p>
+                  <p style="margin-top: 0px;">Invoice #${InvoiceNumber}</p>
+              </div>
+              <div>
+                  <h1 style="margin-bottom:0px; font-size: 35px; color:#222">Invoice from ${companyName}</h1>
+                  <h1 style="margin: 0px; font-size: 35px; color:#222">${currencySign}${depositamount || ''}</h1>
+                  <p style="margin-top: 0px; color:#222">Due: ${duedate || ''}</p>
+              </div>
+              <div style="background-color:#f5f4f4; padding: 1px 20px; margin: 30px 0px 10px;">
+                  <p style="color:#222">${content || ''}</p>
+              </div>
+              <div style="margin: 20px 0px 10px;">
+                  <p style="color:#222">This email contains a unique link just for you. Please do not share this email or link or others will have access to your document.</p>
+              </div>
+          </section>
+          <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#f5f4f4; padding: 35px 30px; margin-bottom: 40px;">
+              <div>
+                  <p style="font-size: 15px; color:#222">Make your invoice</p>
+                  <h1 style="font-size: 35px; margin-bottom: 0; margin-top: 0; color:#222">INVOICE</h1>
+              </div>
+              <div>
+                  <ul style="text-align: center;display: inline-flex;list-style:none;padding-left:0px">
+                      <li>
+                          <a href="">
+                              <img src="https://static.xx.fbcdn.net/rsrc.php/yb/r/hLRJ1GG_y0J.ico" alt="facebook icon" style="margin: 0px 5px;">
+                          </a>
+                      </li>
+                      <li>
+                          <a href="">
+                              <img src="https://static.cdninstagram.com/rsrc.php/y4/r/QaBlI0OZiks.ico" alt="instagram icon" style="margin: 0px 5px;">
+                          </a>
+                      </li>
+                  </ul>
+              </div>
+          </section>
+      </body>
+      </html>`;
+  
+    // If a Hostinger PHP endpoint is configured, prefer sending to that endpoint (keeps your existing PHP mailer flow)
+    if (phpEndpoint && apiKey) {
+      try {
+        const payload = {
+          smtpHost,
+          smtpPort,
+          smtpUser,
+          smtpPass,
+          smtpCrypto,
+          fromEmail: smtpUser,
+          fromName: companyName || 'Your Company',
+          to: toStr,
+          bcc: bccStr,
+          subject,
+          html,
+          attachments: [
+            {
+              filename,
+              contentBase64: attachmentBase64,
+              contentType: 'application/pdf',
+            },
+          ],
+        };
+  
+        const resp = await axios.post(phpEndpoint, payload, {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-KEY': apiKey,
+          },
+          timeout: Number(process.env.EMAIL_REQUEST_TIMEOUT_MS || 30000),
+        });
+  
+        if (resp.data && resp.data.success) {
+          return res.status(200).json({ success: true, data: resp.data });
+        }
+  
+        console.error('Hostinger response:', resp.data);
+        return res.status(502).json({
+          success: false,
+          error: resp.data || 'Unknown response from Hostinger mail endpoint',
+        });
+      } catch (err) {
+        console.error('⚠️ Error calling Hostinger sendemail:');
+        console.error('Message:', err.message);
+        if (err.code) console.error('Code:', err.code);
+        if (err.config && err.config.url) console.error('Request URL:', err.config.url);
+        if (err.response) {
+          console.error('Status:', err.response.status);
+          console.error('Status Text:', err.response.statusText);
+          console.error('Headers:', err.response.headers);
+          console.error('Response Data:', err.response.data);
+        } else {
+          console.error('No response received from Hostinger (network or timeout).');
+        }
+  
+        return res.status(500).json({
+          success: false,
+          error: err.message || 'Failed to contact Hostinger mailer',
+          details: {
+            code: err.code || null,
+            status: err.response ? err.response.status : null,
+            data: err.response ? err.response.data : null,
+          },
+        });
+      }
+    }
+  
+    // Otherwise fallback to sending directly via nodemailer SMTP
+    if (!smtpUser || !smtpPass || !smtpHost) {
+      console.error('Missing SMTP config in environment variables for direct SMTP send.');
+      return res.status(500).json({
+        success: false,
+        error: 'Server SMTP configuration incomplete (SMTP_HOST, SMTP_USER, SMTP_PASS required).',
+      });
+    }
+  
+    try {
+      const secure = smtpCrypto === 'ssl' || Number(smtpPort) === 465;
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort || (secure ? 465 : 587),
+        secure,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+        // optional: you can add tls: { rejectUnauthorized: false } if needed (not recommended for prod)
+      });
+  
+      const mailOptions = {
+        from: smtpUser,
+        to: toStr,
+        bcc: bccStr,
+        subject,
+        html,
+        attachments: [
+          {
+            filename,
+            content: Buffer.from(attachmentBase64, 'base64'),
+            contentType: 'application/pdf',
+          },
+        ],
+      };
+  
+      const info = await transporter.sendMail(mailOptions);
+      console.log('Email sent:', info && (info.messageId || info.accepted));
+      return res.status(200).json({ success: true, info });
+    } catch (err) {
+      console.error('Error sending email via SMTP:');
+      console.error('Message:', err.message);
+      if (err.code) console.error('Code:', err.code);
+      if (err.response) console.error('Response:', err.response);
+      return res.status(500).json({ success: false, error: err.message || 'Failed to send email via SMTP' });
+    }
+  });
+  
 
-// GET API: Fetch Waiver details by ID
 router.get('/waiver/:id', async (req, res) => {
     const { id } = req.params;
 
@@ -1091,245 +1468,789 @@ router.post('/addwaiversignature/:waiverId', async (req, res) => {
     }
 });
 
+// router.post('/send-waiver-request', async (req, res) => {
+// const {to, userId} = req.body;
+// const transporter = nodemailer.createTransport({
+//     service: 'gmail',
+//     auth: {
+//         user: "canadianscrewpiles@gmail.com",
+//         pass: "vhjcbemwmrynvmcr"
+//     },
+// });
+
+// try {
+//     // Save data to Waiver collection
+//     const waiver = new WaiverSchema({
+//         waiveremail: to,
+//         userId: userId,
+//     });
+
+//     const savedWaiver = await waiver.save();
+//     const waiverId = savedWaiver._id; // The latest created ID
+//     console.log('Waiver ID:', waiverId); // Print the ID in the server logs
+
+// const mailOptions = {
+//     from: 'canadianscrewpiles@gmail.com',
+//     to: to,
+//     subject: `Waiver Request from CSPC LTD`,
+//     html: `<html>
+//     <body style="background-color:#f9f9f9; margin:0; padding:0;">
+//         <table width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9f9f9; padding:20px;">
+//             <tr>
+//                 <td align="center">
+//                     <table width="600" cellspacing="0" cellpadding="20" border="0" style="background-color:#ffffff; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.1);">
+//                         <tr>
+//                             <td style="text-align:center; border-bottom:2px solid #4CAF50;">
+//                                 <h1 style="font-family:Arial, sans-serif; color:#333;">Waiver Request from CSPC LTD</h1>
+//                             </td>
+//                         </tr>
+//                         <tr>
+//                             <td style="font-family:Arial, sans-serif; color:#555;">
+//                                 <p>Hello,</p>
+//                                 <p>We have sent you a waiver request. Please review and sign the document using the link below. For security purposes, this link is unique to you and should not be shared.</p>
+//                                 <p><a href="https://cspiles.vercel.app/waiversign?waiverId=${waiverId}" style="display:inline-block; padding:10px 20px; background-color:#4CAF50; color:#ffffff; text-decoration:none; border-radius:5px;">Review Waiver Request</a></p>
+//                                 <p>If you have any questions or need assistance, please do not hesitate to contact us.</p>
+//                                 <p>Best regards,</p>
+//                                 <p>The CSPC LTD Team</p>
+//                             </td>
+//                         </tr>
+//                     </table>
+//                 </td>
+//             </tr>
+//         </table>
+//     </body>
+// </html>`
+// };
+
+// await transporter.sendMail(mailOptions);
+//     console.log('Email sent successfully!');
+
+//     res.status(200).json({ success: true, waiverId: waiverId });
+// } catch (error) {
+//     console.error('Error sending email:', error);
+//     res.status(500).json({ success: false, error: 'Failed to send email.' });
+// }
+
+// })
+
+// router.post('/send-estimate-email', async (req, res) => {
+//     const {
+//         to,
+//         bcc,
+//         content,
+//         companyName,
+//         pdfAttachment,
+//         customdate,
+//         EstimateNumber,
+//         amountdue,
+//         currencyType,
+//         estimateId,
+//         ownerId,
+//         amountdue1
+//     } = req.body;
+
+//     const transporter = nodemailer.createTransport({
+//         service: 'gmail',
+//         auth: {
+//             user: "canadianscrewpiles@gmail.com",
+//             pass: "vhjcbemwmrynvmcr"
+//         },
+//     });
+
+//     // const transporter = nodemailer.createTransport({
+//     //     host: 'smtp.hostinger.com', // Replace with your hosting provider's SMTP server
+//     //     port: 465, // Replace with the appropriate port
+//     //     secure: true, // true for 465, false for other ports
+//     //     auth: {
+//     //       user: 'canadianscrewpiles@gmail.com',
+//     //       pass: 'lpctmxmuoudgnopd'
+//     //     }
+//     //   });
+
+//     const currencySign = getCurrencySign(currencyType);
+
+//     const mailOptions = {
+//         from: 'canadianscrewpiles@gmail.com',
+//         to: to.join(', '),
+//         bcc: bcc.join(', '),
+//         subject: `Estimate from ${companyName}`,
+//         attachments: [
+//             {
+//                 filename: `Estimate #${EstimateNumber}.pdf`,
+//                 content: pdfAttachment.split(';base64,')[1], // Extract base64 content
+//                 encoding: 'base64',
+//             }
+//         ],
+//         html: `<html>
+//         <body style="background-color:#c5c1c187; margin-top: 40px; padding:20px 0px;">
+//              <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#fff; padding: 15px 30px; margin-top: 40px;">
+//                 <div style="padding: 10px 0px;  text-align: center; font-weight: 500; color: #999999">
+//                     <p style="margin-bottom:0px">${customdate}</p>
+//                     <p style="margin-top: 0px;">Estimate #${EstimateNumber}</p>
+//                 </div>
+//                 <div>
+//                     <h1 style="margin-bottom:0px; font-size: 35px; color:#222">Estimate from ${companyName}</h1>
+//                     <h1 style="margin: 0px; font-size: 35px; color:#222">${currencySign}${amountdue1}</h1>
+//                 </div>
+//                 <div style="background-color:#f5f4f4; padding: 1px 20px; margin: 30px 0px 10px;">
+//                     <p style="color:#222">${content}</p>
+//                 </div>
+//                 <div style="margin: 20px 0px 10px;">
+//                     <p style="color:#222">This email contains a unique link just for you. Please do not share this email or link or others will have access to your document.</p>
+//                     <a href="https://cspiles.vercel.app/customersign?estimateId=${estimateId}" style="display:inline-block;padding:10px 20px;background-color:#4CAF50;color:#fff;text-decoration:none;border-radius:5px;">View this Estimate</a>
+//                 </div>
+//             </section>
+//             <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#f5f4f4; padding: 35px 30px; margin-bottom: 40px;">
+//                 <div>
+//                     <p style="font-size: 15px; color:#222">Make your Estimate</p>
+//                     <h1 style="font-size: 35px; margin-bottom: 0; margin-top: 0; color:#222">ESTIMATE</h1>
+//                 </div>
+//                 <div>
+//                     <ul style="text-align: center;display: inline-flex;list-style:none;padding-left:0px">
+//                         <li>
+//                             <a href="">
+//                                 <img src="https://static.xx.fbcdn.net/rsrc.php/yb/r/hLRJ1GG_y0J.ico" alt="facebook icon" style="margin: 0px 5px;">
+//                             </a>
+//                         </li>
+//                         <li>
+//                             <a href="">
+//                                 <img src="https://static.cdninstagram.com/rsrc.php/y4/r/QaBlI0OZiks.ico" alt="instagram icon" style="margin: 0px 5px;">
+//                             </a>
+//                         </li>
+//                     </ul>
+//                 </div>
+//             </section>
+//         </body>
+//             </html>`,
+//     };
+
+//     try {
+//         await transporter.sendMail(mailOptions);
+//         console.log('Email sent successfully!');
+//         res.status(200).json({ success: true });
+//     } catch (error) {
+//         console.error('Error sending email:', error);
+//         res.status(500).json({ success: false, error: 'Failed to send email.' });
+//     }
+// });
+
+
 router.post('/send-waiver-request', async (req, res) => {
-const {to, userId} = req.body;
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: "canadianscrewpiles@gmail.com",
-        pass: "vhjcbemwmrynvmcr"
-    },
-});
+    const { to, userId } = req.body;
+  
+    // Basic validation
+    if (!to || !userId) {
+      return res.status(400).json({ success: false, error: 'Missing required fields: to or userId.' });
+    }
+  
+    // Normalize recipient(s)
+    const toEmails = normalizeRecipients(to);
+    if (!toEmails.length) {
+      return res.status(400).json({ success: false, error: 'No valid recipient email provided.' });
+    }
+  
+    try {
+      // Save Waiver to DB
+      const waiver = new WaiverSchema({
+        waiveremail: toEmails[0], // store first recipient (or adjust as needed)
+        userId,
+        createdAt: new Date(),
+      });
+  
+      const savedWaiver = await waiver.save();
+      const waiverId = savedWaiver._id;
+      console.log('Waiver ID:', waiverId);
+  
+      // Env-driven settings
+      const smtpHost = process.env.SMTP_HOST;
+      const smtpPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+      const smtpUser = process.env.SMTP_USER;
+      const smtpPass = process.env.SMTP_PASS;
+      const smtpCrypto = (process.env.SMTP_CRYPTO || 'tls').toLowerCase();
+  
+      const phpEndpoint = process.env.HOSTINGER_MAILER_URL; // optional
+      const apiKey = process.env.HOSTINGER_API_KEY;
+  
+      const fromEmail = process.env.FROM_EMAIL || smtpUser || 'no-reply@example.com';
+      const fromName = process.env.FROM_NAME || 'CSPC LTD';
+  
+      const subject = `Waiver Request from CSPC LTD`;
+      const html = `<!doctype html>
+        <html>
+        <body style="background-color:#f9f9f9; margin:0; padding:0;">
+            <table width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9f9f9; padding:20px;">
+                <tr>
+                    <td align="center">
+                        <table width="600" cellspacing="0" cellpadding="20" border="0" style="background-color:#ffffff; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.1);">
+                            <tr>
+                                <td style="text-align:center; border-bottom:2px solid #4CAF50;">
+                                    <h1 style="font-family:Arial, sans-serif; color:#333;">Waiver Request from CSPC LTD</h1>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="font-family:Arial, sans-serif; color:#555;">
+                                    <p>Hello,</p>
+                                    <p>We have sent you a waiver request. Please review and sign the document using the link below. For security purposes, this link is unique to you and should not be shared.</p>
+                                    <p><a href="https://cspiles.vercel.app/waiversign?waiverId=${waiverId}" style="display:inline-block; padding:10px 20px; background-color:#4CAF50; color:#ffffff; text-decoration:none; border-radius:5px;">Review Waiver Request</a></p>
+                                    <p>If you have any questions or need assistance, please do not hesitate to contact us.</p>
+                                    <p>Best regards,</p>
+                                    <p>The CSPC LTD Team</p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>`;
+  
+      // If Hostinger PHP endpoint + API key are configured, prefer using it
+      if (phpEndpoint && apiKey) {
+        try {
+          const payload = {
+            smtpHost,
+            smtpPort,
+            smtpUser,
+            smtpPass,
+            smtpCrypto,
+            fromEmail,
+            fromName,
+            to: toEmails.join(', '),
+            subject,
+            html,
+            meta: { waiverId, userId },
+          };
+  
+          const resp = await axios.post(phpEndpoint, payload, {
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-KEY': apiKey,
+            },
+            timeout: Number(process.env.EMAIL_REQUEST_TIMEOUT_MS || 30000),
+          });
+  
+          if (resp.data && resp.data.success) {
+            return res.status(200).json({ success: true, waiverId });
+          }
+  
+          console.error('Hostinger response:', resp.data);
+          return res.status(502).json({ success: false, error: resp.data || 'Mail endpoint returned unexpected response' });
+        } catch (err) {
+          console.error('⚠️ Error calling Hostinger sendemail:');
+          console.error('Message:', err.message);
+          if (err.code) console.error('Code:', err.code);
+          if (err.config && err.config.url) console.error('Request URL:', err.config.url);
+          if (err.response) {
+            console.error('Status:', err.response.status);
+            console.error('Response Data:', err.response.data);
+          } else {
+            console.error('No response received from Hostinger (network or timeout).');
+          }
+  
+          return res.status(500).json({
+            success: false,
+            error: err.message || 'Failed to contact mail endpoint',
+            details: {
+              code: err.code || null,
+              status: err.response ? err.response.status : null,
+              data: err.response ? err.response.data : null,
+            },
+          });
+        }
+      }
+  
+      // Otherwise send directly via nodemailer
+      if (!smtpHost || !smtpUser || !smtpPass) {
+        console.error('Missing SMTP config in environment variables for direct SMTP send.');
+        return res.status(500).json({
+          success: false,
+          error: 'Server SMTP configuration incomplete (SMTP_HOST, SMTP_USER, SMTP_PASS required).',
+        });
+      }
+  
+      const secure = smtpCrypto === 'ssl' || Number(smtpPort) === 465;
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort || (secure ? 465 : 587),
+        secure,
+        auth: { user: smtpUser, pass: smtpPass },
+      });
+  
+      const mailOptions = {
+        from: `"${fromName}" <${fromEmail}>`,
+        to: toEmails.join(', '),
+        subject,
+        html,
+      };
+  
+      const info = await transporter.sendMail(mailOptions);
+      console.log('Email sent via SMTP:', info && (info.messageId || info.accepted));
+      return res.status(200).json({ success: true, waiverId, info });
+    } catch (error) {
+      console.error('Error in /send-waiver-request:', error);
+      return res.status(500).json({ success: false, error: error.message || 'Failed to send email.' });
+    }
+  });
 
-try {
-    // Save data to Waiver collection
-    const waiver = new WaiverSchema({
-        waiveremail: to,
-        userId: userId,
-    });
-
-    const savedWaiver = await waiver.save();
-    const waiverId = savedWaiver._id; // The latest created ID
-    console.log('Waiver ID:', waiverId); // Print the ID in the server logs
-
-const mailOptions = {
-    from: 'canadianscrewpiles@gmail.com',
-    to: to,
-    subject: `Waiver Request from CSPC LTD`,
-    html: `<html>
-    <body style="background-color:#f9f9f9; margin:0; padding:0;">
-        <table width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9f9f9; padding:20px;">
-            <tr>
-                <td align="center">
-                    <table width="600" cellspacing="0" cellpadding="20" border="0" style="background-color:#ffffff; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.1);">
-                        <tr>
-                            <td style="text-align:center; border-bottom:2px solid #4CAF50;">
-                                <h1 style="font-family:Arial, sans-serif; color:#333;">Waiver Request from CSPC LTD</h1>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="font-family:Arial, sans-serif; color:#555;">
-                                <p>Hello,</p>
-                                <p>We have sent you a waiver request. Please review and sign the document using the link below. For security purposes, this link is unique to you and should not be shared.</p>
-                                <p><a href="https://cspiles.vercel.app/waiversign?waiverId=${waiverId}" style="display:inline-block; padding:10px 20px; background-color:#4CAF50; color:#ffffff; text-decoration:none; border-radius:5px;">Review Waiver Request</a></p>
-                                <p>If you have any questions or need assistance, please do not hesitate to contact us.</p>
-                                <p>Best regards,</p>
-                                <p>The CSPC LTD Team</p>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-        </table>
-    </body>
-</html>`
-};
-
-await transporter.sendMail(mailOptions);
-    console.log('Email sent successfully!');
-
-    res.status(200).json({ success: true, waiverId: waiverId });
-} catch (error) {
-    console.error('Error sending email:', error);
-    res.status(500).json({ success: false, error: 'Failed to send email.' });
-}
-
-})
 
 router.post('/send-estimate-email', async (req, res) => {
     const {
-        to,
-        bcc,
-        content,
-        companyName,
-        pdfAttachment,
-        customdate,
-        EstimateNumber,
-        amountdue,
-        currencyType,
-        estimateId,
-        ownerId,
-        amountdue1
+      to,
+      bcc,
+      content,
+      companyName,
+      pdfAttachment,
+      customdate,
+      EstimateNumber,
+      amountdue,
+      currencyType,
+      estimateId,
+      ownerId,
+      amountdue1,
     } = req.body;
-
-    const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: "canadianscrewpiles@gmail.com",
-            pass: "vhjcbemwmrynvmcr"
-        },
-    });
-
-    // const transporter = nodemailer.createTransport({
-    //     host: 'smtp.hostinger.com', // Replace with your hosting provider's SMTP server
-    //     port: 465, // Replace with the appropriate port
-    //     secure: true, // true for 465, false for other ports
-    //     auth: {
-    //       user: 'canadianscrewpiles@gmail.com',
-    //       pass: 'lpctmxmuoudgnopd'
-    //     }
-    //   });
-
-    const currencySign = getCurrencySign(currencyType);
-
-    const mailOptions = {
-        from: 'canadianscrewpiles@gmail.com',
-        to: to.join(', '),
-        bcc: bcc.join(', '),
-        subject: `Estimate from ${companyName}`,
-        attachments: [
-            {
-                filename: `Estimate #${EstimateNumber}.pdf`,
-                content: pdfAttachment.split(';base64,')[1], // Extract base64 content
-                encoding: 'base64',
-            }
-        ],
-        html: `<html>
-        <body style="background-color:#c5c1c187; margin-top: 40px; padding:20px 0px;">
-             <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#fff; padding: 15px 30px; margin-top: 40px;">
-                <div style="padding: 10px 0px;  text-align: center; font-weight: 500; color: #999999">
-                    <p style="margin-bottom:0px">${customdate}</p>
-                    <p style="margin-top: 0px;">Estimate #${EstimateNumber}</p>
-                </div>
-                <div>
-                    <h1 style="margin-bottom:0px; font-size: 35px; color:#222">Estimate from ${companyName}</h1>
-                    <h1 style="margin: 0px; font-size: 35px; color:#222">${currencySign}${amountdue1}</h1>
-                </div>
-                <div style="background-color:#f5f4f4; padding: 1px 20px; margin: 30px 0px 10px;">
-                    <p style="color:#222">${content}</p>
-                </div>
-                <div style="margin: 20px 0px 10px;">
-                    <p style="color:#222">This email contains a unique link just for you. Please do not share this email or link or others will have access to your document.</p>
-                    <a href="https://cspiles.vercel.app/customersign?estimateId=${estimateId}" style="display:inline-block;padding:10px 20px;background-color:#4CAF50;color:#fff;text-decoration:none;border-radius:5px;">View this Estimate</a>
-                </div>
-            </section>
-            <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#f5f4f4; padding: 35px 30px; margin-bottom: 40px;">
-                <div>
-                    <p style="font-size: 15px; color:#222">Make your Estimate</p>
-                    <h1 style="font-size: 35px; margin-bottom: 0; margin-top: 0; color:#222">ESTIMATE</h1>
-                </div>
-                <div>
-                    <ul style="text-align: center;display: inline-flex;list-style:none;padding-left:0px">
-                        <li>
-                            <a href="">
-                                <img src="https://static.xx.fbcdn.net/rsrc.php/yb/r/hLRJ1GG_y0J.ico" alt="facebook icon" style="margin: 0px 5px;">
-                            </a>
-                        </li>
-                        <li>
-                            <a href="">
-                                <img src="https://static.cdninstagram.com/rsrc.php/y4/r/QaBlI0OZiks.ico" alt="instagram icon" style="margin: 0px 5px;">
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-            </section>
-        </body>
-            </html>`,
-    };
-
-    try {
-        await transporter.sendMail(mailOptions);
-        console.log('Email sent successfully!');
-        res.status(200).json({ success: true });
-    } catch (error) {
-        console.error('Error sending email:', error);
-        res.status(500).json({ success: false, error: 'Failed to send email.' });
+  
+    // Basic required checks
+    if (!to || !pdfAttachment || !EstimateNumber) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: to, pdfAttachment, or EstimateNumber.',
+      });
     }
-});
+  
+    // Normalize recipients (allow array or string)
+    const toStr = Array.isArray(to) ? to.join(', ') : String(to || '');
+    const bccStr = Array.isArray(bcc) ? bcc.join(', ') : (bcc ? String(bcc) : undefined);
+  
+    // Normalize base64 attachment (strip data:...;base64, if present)
+    const base64Match = typeof pdfAttachment === 'string' && pdfAttachment.match(/base64,(.*)$/);
+    const attachmentBase64 = base64Match ? base64Match[1] : pdfAttachment;
+  
+    // Env-driven config
+    const smtpHost = process.env.SMTP_HOST;
+    const smtpPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+    const smtpCrypto = (process.env.SMTP_CRYPTO || 'tls').toLowerCase(); // 'tls'|'ssl' etc.
+  
+    const phpEndpoint = process.env.HOSTINGER_MAILER_URL; // optional
+    const apiKey = process.env.HOSTINGER_API_KEY;
+  
+    const filename = `Estimate-${EstimateNumber}.pdf`;
+    const subject = `Estimate from ${companyName || 'Your Company'}`;
+  
+    const currencySign = getCurrencySign(currencyType);
+    const html = `
+      <html>
+      <body style="background-color:#c5c1c187; margin-top: 40px; padding:20px 0px;">
+           <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#fff; padding: 15px 30px; margin-top: 40px;">
+              <div style="padding: 10px 0px;  text-align: center; font-weight: 500; color: #999999">
+                  <p style="margin-bottom:0px">${customdate || ''}</p>
+                  <p style="margin-top: 0px;">Estimate #${EstimateNumber}</p>
+              </div>
+              <div>
+                  <h1 style="margin-bottom:0px; font-size: 35px; color:#222">Estimate from ${companyName}</h1>
+                  <h1 style="margin: 0px; font-size: 35px; color:#222">${currencySign}${amountdue1 || amountdue || ''}</h1>
+              </div>
+              <div style="background-color:#f5f4f4; padding: 1px 20px; margin: 30px 0px 10px;">
+                  <p style="color:#222">${content || ''}</p>
+              </div>
+              <div style="margin: 20px 0px 10px;">
+                  <p style="color:#222">This email contains a unique link just for you. Please do not share this email or link or others will have access to your document.</p>
+                  <a href="https://cspiles.vercel.app/customersign?estimateId=${estimateId}" style="display:inline-block;padding:10px 20px;background-color:#4CAF50;color:#fff;text-decoration:none;border-radius:5px;">View this Estimate</a>
+              </div>
+          </section>
+          <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#f5f4f4; padding: 35px 30px; margin-bottom: 40px;">
+              <div>
+                  <p style="font-size: 15px; color:#222">Make your Estimate</p>
+                  <h1 style="font-size: 35px; margin-bottom: 0; margin-top: 0; color:#222">ESTIMATE</h1>
+              </div>
+              <div>
+                  <ul style="text-align: center;display: inline-flex;list-style:none;padding-left:0px">
+                      <li>
+                          <a href="">
+                              <img src="https://static.xx.fbcdn.net/rsrc.php/yb/r/hLRJ1GG_y0J.ico" alt="facebook icon" style="margin: 0px 5px;">
+                          </a>
+                      </li>
+                      <li>
+                          <a href="">
+                              <img src="https://static.cdninstagram.com/rsrc.php/y4/r/QaBlI0OZiks.ico" alt="instagram icon" style="margin: 0px 5px;">
+                          </a>
+                      </li>
+                  </ul>
+              </div>
+          </section>
+      </body>
+      </html>`;
+  
+    // If a Hostinger PHP endpoint is configured, prefer sending via that endpoint
+    if (phpEndpoint && apiKey) {
+      try {
+        const payload = {
+          smtpHost,
+          smtpPort,
+          smtpUser,
+          smtpPass,
+          smtpCrypto,
+          fromEmail: smtpUser || (process.env.FROM_EMAIL || ''),
+          fromName: companyName || 'Your Company',
+          to: toStr,
+          bcc: bccStr,
+          subject,
+          html,
+          attachments: [
+            {
+              filename,
+              contentBase64: attachmentBase64,
+              contentType: 'application/pdf',
+            },
+          ],
+        };
+  
+        const resp = await axios.post(phpEndpoint, payload, {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-KEY': apiKey,
+          },
+          timeout: Number(process.env.EMAIL_REQUEST_TIMEOUT_MS || 30000),
+        });
+  
+        if (resp.data && resp.data.success) {
+          return res.status(200).json({ success: true, data: resp.data });
+        }
+  
+        console.error('Hostinger response:', resp.data);
+        return res.status(502).json({
+          success: false,
+          error: resp.data || 'Unknown response from Hostinger mail endpoint',
+        });
+      } catch (err) {
+        console.error('⚠️ Error calling Hostinger sendemail:');
+        console.error('Message:', err.message);
+        if (err.code) console.error('Code:', err.code);
+        if (err.config && err.config.url) console.error('Request URL:', err.config.url);
+        if (err.response) {
+          console.error('Status:', err.response.status);
+          console.error('Status Text:', err.response.statusText);
+          console.error('Headers:', err.response.headers);
+          console.error('Response Data:', err.response.data);
+        } else {
+          console.error('No response received from Hostinger (network or timeout).');
+        }
+  
+        return res.status(500).json({
+          success: false,
+          error: err.message || 'Failed to contact Hostinger mailer',
+          details: {
+            code: err.code || null,
+            status: err.response ? err.response.status : null,
+            data: err.response ? err.response.data : null,
+          },
+        });
+      }
+    }
+  
+    // Fallback to direct SMTP via nodemailer
+    if (!smtpUser || !smtpPass || !smtpHost) {
+      console.error('Missing SMTP config in environment variables for direct SMTP send.');
+      return res.status(500).json({
+        success: false,
+        error: 'Server SMTP configuration incomplete (SMTP_HOST, SMTP_USER, SMTP_PASS required).',
+      });
+    }
+  
+    try {
+      const secure = smtpCrypto === 'ssl' || Number(smtpPort) === 465;
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort || (secure ? 465 : 587),
+        secure,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+      });
+  
+      const mailOptions = {
+        from: process.env.FROM_EMAIL || smtpUser,
+        to: toStr,
+        bcc: bccStr,
+        subject,
+        html,
+        attachments: [
+          {
+            filename,
+            content: Buffer.from(attachmentBase64, 'base64'),
+            contentType: 'application/pdf',
+          },
+        ],
+      };
+  
+      const info = await transporter.sendMail(mailOptions);
+      console.log('Email sent via SMTP:', info && (info.messageId || info.accepted));
+      return res.status(200).json({ success: true, info });
+    } catch (err) {
+      console.error('Error sending email via SMTP:');
+      console.error('Message:', err.message);
+      if (err.code) console.error('Code:', err.code);
+      if (err.response) console.error('Response:', err.response);
+      return res.status(500).json({ success: false, error: err.message || 'Failed to send email via SMTP' });
+    }
+  });
+
+
+  
+// router.post('/send-estimate-signed-email', async (req, res) => {
+//     const {
+//         to,
+//         estimateId,
+//         ownerId,
+//         documentNumber,
+//         customerName
+//     } = req.body;
+
+//     const transporter = nodemailer.createTransport({
+//         service: 'gmail',
+//         auth: {
+//             user: "canadianscrewpiles@gmail.com",
+//             pass: "vhjcbemwmrynvmcr"
+//         },
+//     });
+
+//     const mailOptions = {
+//         from: 'canadianscrewpiles@gmail.com',
+//         to: to,
+//         subject: 'Your document has been signed',
+//         html: `<html>
+//         <body style="background-color:#c5c1c187; margin-top: 40px; padding:20px 0px;">
+//              <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#fff; padding: 15px 30px; margin-top: 40px;">
+//                 <div style="padding: 10px 0px;  text-align: center; font-weight: 500; color: #999999">
+//                 </div>
+//                 <div>
+//                     <h1 style="margin-bottom:0px; font-size: 32px; color:#222">${customerName} has signed your document</h1>
+//                 </div>
+//                 <div>
+//                     <p style="margin-bottom:10px; font-size: 18px; color:#222; padding-bottom:25px;">Document signed: <span style="font-weight:bold"> ${documentNumber} has been signed by ${customerName}.</span></p>
+//                 </div><hr/>
+//                 <div>
+//                     <p style="margin-bottom:0px; padding-top:10px; padding-bottom:15px; font-size: 14px; color:#222"><span style="font-weight:bold">DO NOT </span>share this email</p>
+//                 </div>
+//                 <div style="padding: 1px 5px; margin: 0px 0px 10px;">
+//                     <p style="color:#222">This email contains a unique link just for you. 
+//                         Please do not share this email or link or others will have access to your document.
+//                     </p>
+//                 </div>
+//             </section>
+//             <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#f5f4f4; padding: 35px 30px; margin-bottom: 40px;">
+//                 <div>
+//                     <h1 style="font-size: 35px; margin-bottom: 0; margin-top: 0; color:#222">ESTIMATE</h1>
+//                 </div>
+//                 <div>
+//                     <ul style="text-align: center;display: inline-flex;list-style:none;padding-left:0px">
+//                         <li>
+//                             <a href="">
+//                                 <img src="https://static.xx.fbcdn.net/rsrc.php/yb/r/hLRJ1GG_y0J.ico" alt="facebook icon" style="margin: 0px 5px;">
+//                             </a>
+//                         </li>
+//                         <li>
+//                             <a href="">
+//                                 <img src="https://static.cdninstagram.com/rsrc.php/y4/r/QaBlI0OZiks.ico" alt="instagram icon" style="margin: 0px 5px;">
+//                             </a>
+//                         </li>
+//                     </ul>
+//                 </div>
+//             </section>
+//         </body>
+//             </html>`,
+//     };
+
+//     try {
+//         await transporter.sendMail(mailOptions);
+//         console.log('Email sent successfully!');
+//         res.status(200).json({ success: true });
+//     } catch (error) {
+//         console.error('Error sending email:', error);
+//         res.status(500).json({ success: false, error: 'Failed to send email.' });
+//     }
+// });
 
 router.post('/send-estimate-signed-email', async (req, res) => {
     const {
-        to,
-        estimateId,
-        ownerId,
-        documentNumber,
-        customerName
+      to,
+      estimateId,
+      ownerId,
+      documentNumber,
+      customerName,
     } = req.body;
-
-    const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: "canadianscrewpiles@gmail.com",
-            pass: "vhjcbemwmrynvmcr"
-        },
-    });
-
-    const mailOptions = {
-        from: 'canadianscrewpiles@gmail.com',
-        to: to,
-        subject: 'Your document has been signed',
-        html: `<html>
-        <body style="background-color:#c5c1c187; margin-top: 40px; padding:20px 0px;">
-             <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#fff; padding: 15px 30px; margin-top: 40px;">
-                <div style="padding: 10px 0px;  text-align: center; font-weight: 500; color: #999999">
-                </div>
-                <div>
-                    <h1 style="margin-bottom:0px; font-size: 32px; color:#222">${customerName} has signed your document</h1>
-                </div>
-                <div>
-                    <p style="margin-bottom:10px; font-size: 18px; color:#222; padding-bottom:25px;">Document signed: <span style="font-weight:bold"> ${documentNumber} has been signed by ${customerName}.</span></p>
-                </div><hr/>
-                <div>
-                    <p style="margin-bottom:0px; padding-top:10px; padding-bottom:15px; font-size: 14px; color:#222"><span style="font-weight:bold">DO NOT </span>share this email</p>
-                </div>
-                <div style="padding: 1px 5px; margin: 0px 0px 10px;">
-                    <p style="color:#222">This email contains a unique link just for you. 
-                        Please do not share this email or link or others will have access to your document.
-                    </p>
-                </div>
-            </section>
-            <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#f5f4f4; padding: 35px 30px; margin-bottom: 40px;">
-                <div>
-                    <h1 style="font-size: 35px; margin-bottom: 0; margin-top: 0; color:#222">ESTIMATE</h1>
-                </div>
-                <div>
-                    <ul style="text-align: center;display: inline-flex;list-style:none;padding-left:0px">
-                        <li>
-                            <a href="">
-                                <img src="https://static.xx.fbcdn.net/rsrc.php/yb/r/hLRJ1GG_y0J.ico" alt="facebook icon" style="margin: 0px 5px;">
-                            </a>
-                        </li>
-                        <li>
-                            <a href="">
-                                <img src="https://static.cdninstagram.com/rsrc.php/y4/r/QaBlI0OZiks.ico" alt="instagram icon" style="margin: 0px 5px;">
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-            </section>
-        </body>
-            </html>`,
-    };
-
-    try {
-        await transporter.sendMail(mailOptions);
-        console.log('Email sent successfully!');
-        res.status(200).json({ success: true });
-    } catch (error) {
-        console.error('Error sending email:', error);
-        res.status(500).json({ success: false, error: 'Failed to send email.' });
+  
+    // Basic validation
+    if (!to || !documentNumber || !customerName) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: to, documentNumber, or customerName.',
+      });
     }
-});
+  
+    // Normalize `to` (allow array or single address)
+    const toStr = Array.isArray(to) ? to.join(', ') : String(to);
+  
+    // Env-driven config
+    const smtpHost = process.env.SMTP_HOST;
+    const smtpPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+    const smtpCrypto = (process.env.SMTP_CRYPTO || 'tls').toLowerCase();
+  
+    const phpEndpoint = process.env.HOSTINGER_MAILER_URL; // optional
+    const apiKey = process.env.HOSTINGER_API_KEY;
+  
+    const subject = 'Your document has been signed';
+    const fromEmail = process.env.FROM_EMAIL || smtpUser || 'no-reply@example.com';
+  
+    // HTML body (kept identical to your original)
+    const html = `<html>
+    <body style="background-color:#c5c1c187; margin-top: 40px; padding:20px 0px;">
+         <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#fff; padding: 15px 30px; margin-top: 40px;">
+            <div style="padding: 10px 0px;  text-align: center; font-weight: 500; color: #999999">
+            </div>
+            <div>
+                <h1 style="margin-bottom:0px; font-size: 32px; color:#222">${customerName} has signed your document</h1>
+            </div>
+            <div>
+                <p style="margin-bottom:10px; font-size: 18px; color:#222; padding-bottom:25px;">Document signed: <span style="font-weight:bold"> ${documentNumber} has been signed by ${customerName}.</span></p>
+            </div><hr/>
+            <div>
+                <p style="margin-bottom:0px; padding-top:10px; padding-bottom:15px; font-size: 14px; color:#222"><span style="font-weight:bold">DO NOT </span>share this email</p>
+            </div>
+            <div style="padding: 1px 5px; margin: 0px 0px 10px;">
+                <p style="color:#222">This email contains a unique link just for you. 
+                    Please do not share this email or link or others will have access to your document.
+                </p>
+            </div>
+        </section>
+        <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#f5f4f4; padding: 35px 30px; margin-bottom: 40px;">
+            <div>
+                <h1 style="font-size: 35px; margin-bottom: 0; margin-top: 0; color:#222">ESTIMATE</h1>
+            </div>
+            <div>
+                <ul style="text-align: center;display: inline-flex;list-style:none;padding-left:0px">
+                    <li>
+                        <a href="">
+                            <img src="https://static.xx.fbcdn.net/rsrc.php/yb/r/hLRJ1GG_y0J.ico" alt="facebook icon" style="margin: 0px 5px;">
+                        </a>
+                    </li>
+                    <li>
+                        <a href="">
+                            <img src="https://static.cdninstagram.com/rsrc.php/y4/r/QaBlI0OZiks.ico" alt="instagram icon" style="margin: 0px 5px;">
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </section>
+    </body>
+        </html>`;
+  
+    // If you have a Hostinger PHP endpoint + API key configured, use it (keeps your existing PHP mailer flow)
+    if (phpEndpoint && apiKey) {
+      try {
+        const payload = {
+          smtpHost,
+          smtpPort,
+          smtpUser,
+          smtpPass,
+          smtpCrypto,
+          fromEmail,
+          fromName: process.env.FROM_NAME || 'Your Company',
+          to: toStr,
+          subject,
+          html,
+          // No attachments for this route; include estimateId/ownerId in payload so PHP can handle logging if needed
+          meta: { estimateId, ownerId, documentNumber, customerName },
+        };
+  
+        const resp = await axios.post(phpEndpoint, payload, {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-KEY': apiKey,
+          },
+          timeout: Number(process.env.EMAIL_REQUEST_TIMEOUT_MS || 30000),
+        });
+  
+        if (resp.data && resp.data.success) {
+          return res.status(200).json({ success: true, data: resp.data });
+        }
+  
+        console.error('Hostinger response:', resp.data);
+        return res.status(502).json({
+          success: false,
+          error: resp.data || 'Unknown response from Hostinger mail endpoint',
+        });
+      } catch (err) {
+        console.error('⚠️ Error calling Hostinger sendemail:');
+        console.error('Message:', err.message);
+        if (err.code) console.error('Code:', err.code);
+        if (err.config && err.config.url) console.error('Request URL:', err.config.url);
+        if (err.response) {
+          console.error('Status:', err.response.status);
+          console.error('Status Text:', err.response.statusText);
+          console.error('Headers:', err.response.headers);
+          console.error('Response Data:', err.response.data);
+        } else {
+          console.error('No response received from Hostinger (network or timeout).');
+        }
+  
+        return res.status(500).json({
+          success: false,
+          error: err.message || 'Failed to contact Hostinger mailer',
+          details: {
+            code: err.code || null,
+            status: err.response ? err.response.status : null,
+            data: err.response ? err.response.data : null,
+          },
+        });
+      }
+    }
+  
+    // Otherwise fallback to direct SMTP via nodemailer
+    if (!smtpUser || !smtpPass || !smtpHost) {
+      console.error('Missing SMTP config in environment variables for direct SMTP send.');
+      return res.status(500).json({
+        success: false,
+        error: 'Server SMTP configuration incomplete (SMTP_HOST, SMTP_USER, SMTP_PASS required).',
+      });
+    }
+  
+    try {
+      const secure = smtpCrypto === 'ssl' || Number(smtpPort) === 465;
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort || (secure ? 465 : 587),
+        secure,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+      });
+  
+      const mailOptions = {
+        from: fromEmail,
+        to: toStr,
+        subject,
+        html,
+      };
+  
+      const info = await transporter.sendMail(mailOptions);
+      console.log('Email sent via SMTP:', info && (info.messageId || info.accepted));
+      return res.status(200).json({ success: true, info });
+    } catch (err) {
+      console.error('Error sending email via SMTP:');
+      console.error('Message:', err.message);
+      if (err.code) console.error('Code:', err.code);
+      if (err.response) console.error('Response:', err.response);
+      return res.status(500).json({ success: false, error: err.message || 'Failed to send email via SMTP' });
+    }
+  });
+
+  
 
 router.get('/dashboard/:userid', async (req, res) => {
     try {
@@ -1509,147 +2430,310 @@ router.post('/login', [
 
 
 // Function to send a welcome email
-function sendWelcomeEmail(userEmail, name, isFirstTimeLogin) {
-    if (!isFirstTimeLogin) {
-        console.log('Not sending welcome email as it is not the first time login.');
-        return; // Do not send email if it's not the first time login
-    }
+// function sendWelcomeEmail(userEmail, name, isFirstTimeLogin) {
+//     if (!isFirstTimeLogin) {
+//         console.log('Not sending welcome email as it is not the first time login.');
+//         return; // Do not send email if it's not the first time login
+//     }
 
-    const subject = 'Welcome to Our Platform!';
-    const message = `<html xmlns:v="urn:schemas-microsoft-com:vml">
-        <head></head>
-        <body style="background-color:#c5c1c187; margin-top: 40px;">
-            <section style="font-family:sans-serif; width: 60%; margin: auto;">
-                <header style="background-color: #fff; padding: 20px; border: 1px solid #faf8f8;">
-                    <div style="width: 100%; margin: auto; display: flex; align-items: center;">
-                        <div style="width: 40%;">
-                            <img src="welcome.jpg" alt="welcome image">
-                        </div>
-                        <div style="width: 60%;">
-                            <h2>INVOICE</h2>
-                        </div>
-                        <div style="clear:both ;"></div>
-                    </div>
+//     const subject = 'Welcome to Our Platform!';
+//     const message = `<html xmlns:v="urn:schemas-microsoft-com:vml">
+//         <head></head>
+//         <body style="background-color:#c5c1c187; margin-top: 40px;">
+//             <section style="font-family:sans-serif; width: 60%; margin: auto;">
+//                 <header style="background-color: #fff; padding: 20px; border: 1px solid #faf8f8;">
+//                     <div style="width: 100%; margin: auto; display: flex; align-items: center;">
+//                         <div style="width: 40%;">
+//                             <img src="welcome.jpg" alt="welcome image">
+//                         </div>
+//                         <div style="width: 60%;">
+//                             <h2>INVOICE</h2>
+//                         </div>
+//                         <div style="clear:both ;"></div>
+//                     </div>
 
-                    <div>
-                        <h2>🌟 Welcome</h2>
-                        <p>Hi ${name},</p>
-                        <p>Thank you for choosing Invoice! We're thrilled to have you on board. Get ready to embark on a delightful journey of culinary exploration with us.</p>
-                        <p>Savor the experience,</p>
-                        <p>The Invoice Team</p>
-                    </div>
-                </header>
-                <footer style="background-color:#f5f5f587; border: 1px solid #f5f5f587; padding: 20px; color: #888; text-align: center;">
-                    <div>
-                        <p>&copy; 2024 Invoice. All rights reserved.</p>
-                        <p>Contact us: info@invoice.com | Phone: (555) 123-4567</p>
-                        <h4>Available On</h4>
-                        <div>
-                            <ul style="text-align: center;display: inline-flex;list-style:none;padding-left:0px">
-                                <li>
-                                    <a href="">
-                                        <img src="https://static.xx.fbcdn.net/rsrc.php/yb/r/hLRJ1GG_y0J.ico" alt="facebook icon" style="margin: 0px 5px;">
-                                    </a>
-                                </li>
-                                <li>
-                                    <a href="">
-                                        <img src="https://static.cdninstagram.com/rsrc.php/y4/r/QaBlI0OZiks.ico" alt="instagram icon" style="margin: 0px 5px;">
-                                    </a>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                </footer>
-            </section>
-        </body>
-    </html>`;
+//                     <div>
+//                         <h2>🌟 Welcome</h2>
+//                         <p>Hi ${name},</p>
+//                         <p>Thank you for choosing Invoice! We're thrilled to have you on board. Get ready to embark on a delightful journey of culinary exploration with us.</p>
+//                         <p>Savor the experience,</p>
+//                         <p>The Invoice Team</p>
+//                     </div>
+//                 </header>
+//                 <footer style="background-color:#f5f5f587; border: 1px solid #f5f5f587; padding: 20px; color: #888; text-align: center;">
+//                     <div>
+//                         <p>&copy; 2024 Invoice. All rights reserved.</p>
+//                         <p>Contact us: info@invoice.com | Phone: (555) 123-4567</p>
+//                         <h4>Available On</h4>
+//                         <div>
+//                             <ul style="text-align: center;display: inline-flex;list-style:none;padding-left:0px">
+//                                 <li>
+//                                     <a href="">
+//                                         <img src="https://static.xx.fbcdn.net/rsrc.php/yb/r/hLRJ1GG_y0J.ico" alt="facebook icon" style="margin: 0px 5px;">
+//                                     </a>
+//                                 </li>
+//                                 <li>
+//                                     <a href="">
+//                                         <img src="https://static.cdninstagram.com/rsrc.php/y4/r/QaBlI0OZiks.ico" alt="instagram icon" style="margin: 0px 5px;">
+//                                     </a>
+//                                 </li>
+//                             </ul>
+//                         </div>
+//                     </div>
+//                 </footer>
+//             </section>
+//         </body>
+//     </html>`;
 
-    const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: "canadianscrewpiles@gmail.com",
-            pass: "vhjcbemwmrynvmcr"
-        },
-    });
-    // const transporter = nodemailer.createTransport({
-    //     host: 'smtp.hostinger.com', // Replace with your hosting provider's SMTP server
-    //     port: 465, // Replace with the appropriate port
-    //     secure: true, // true for 465, false for other ports
-    //     auth: {
-    //       user: 'canadianscrewpiles@gmail.com',
-    //       pass: 'lpctmxmuoudgnopd'
-    //     }
-    //   });
+//     const transporter = nodemailer.createTransport({
+//         service: 'gmail',
+//         auth: {
+//             user: "canadianscrewpiles@gmail.com",
+//             pass: "vhjcbemwmrynvmcr"
+//         },
+//     });
+//     // const transporter = nodemailer.createTransport({
+//     //     host: 'smtp.hostinger.com', // Replace with your hosting provider's SMTP server
+//     //     port: 465, // Replace with the appropriate port
+//     //     secure: true, // true for 465, false for other ports
+//     //     auth: {
+//     //       user: 'canadianscrewpiles@gmail.com',
+//     //       pass: 'lpctmxmuoudgnopd'
+//     //     }
+//     //   });
 
-    const mailOptions = {
-        from: 'your-email@gmail.com',
-        to: userEmail,
-        subject: subject,
-        html: message,
-    };
+//     const mailOptions = {
+//         from: 'your-email@gmail.com',
+//         to: userEmail,
+//         subject: subject,
+//         html: message,
+//     };
 
-    transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-            console.log('Error sending email:', error);
-        } else {
-            console.log('Email sent:', info.response);
-        }
-    });
+//     transporter.sendMail(mailOptions, (error, info) => {
+//         if (error) {
+//             console.log('Error sending email:', error);
+//         } else {
+//             console.log('Email sent:', info.response);
+//         }
+//     });
+// }
+
+async function sendWelcomeEmail(userEmail, name, isFirstTimeLogin) {
 }
 
-
 // POST route for handling forgot password
+// router.post('/forgot-password', async (req, res) => {
+//     const { email } = req.body;
+//     console.log('Received email:', email);
+//     try {
+//         const user = await User.findOne({ email });
+//         console.log('Retrieved user:', user);
+//         if (!user) {
+//             return res.status(404).json({ message: 'User not found' });
+//         }
+
+//         const resetToken = crypto.randomBytes(20).toString('hex');
+//         user.resetPasswordToken = resetToken;
+//         user.resetPasswordExpires = Date.now() + 3600000; // Token expiry time (e.g., 1 hour)
+//         await user.save();
+
+//         // Nodemailer setup
+//         const transporter = nodemailer.createTransport({
+//             service: 'gmail',
+//             auth: {
+//                 user: "canadianscrewpiles@gmail.com",
+//                 pass: "vhjcbemwmrynvmcr"
+//             },
+//         });
+//         // const transporter = nodemailer.createTransport({
+//         //     host: 'smtp.hostinger.com', // Replace with your hosting provider's SMTP server
+//         //     port: 465, // Replace with the appropriate port
+//         //     secure: true, // true for 465, false for other ports
+//         //     auth: {
+//         //       user: 'canadianscrewpiles@gmail.com',
+//         //       pass: 'lpctmxmuoudgnopd'
+//         //     }
+//         //   });
+
+//         const mailOptions = {
+//             from: 'your_email@example.com',
+//             to: user.email,
+//             subject: 'Reset your password',
+//             text: `You are receiving this because you (or someone else) have requested to reset your password.\n\n
+//               Please click on the following link, or paste this into your browser to complete the process:\n\n
+//               ${req.headers.origin}/reset-password/${resetToken}\n\n
+//               If you did not request this, please ignore this email and your password will remain unchanged.\n`
+//         };
+
+//         await transporter.sendMail(mailOptions);
+
+//         return res.status(200).json({ message: 'Reset password email sent' });
+//     } catch (error) {
+//         console.error(error);
+//         return res.status(500).json({ message: 'Error sending email' });
+//     }
+// });
+
 router.post('/forgot-password', async (req, res) => {
     const { email } = req.body;
     console.log('Received email:', email);
-    try {
-        const user = await User.findOne({ email });
-        console.log('Retrieved user:', user);
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
-        }
-
-        const resetToken = crypto.randomBytes(20).toString('hex');
-        user.resetPasswordToken = resetToken;
-        user.resetPasswordExpires = Date.now() + 3600000; // Token expiry time (e.g., 1 hour)
-        await user.save();
-
-        // Nodemailer setup
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                user: "canadianscrewpiles@gmail.com",
-                pass: "vhjcbemwmrynvmcr"
-            },
-        });
-        // const transporter = nodemailer.createTransport({
-        //     host: 'smtp.hostinger.com', // Replace with your hosting provider's SMTP server
-        //     port: 465, // Replace with the appropriate port
-        //     secure: true, // true for 465, false for other ports
-        //     auth: {
-        //       user: 'canadianscrewpiles@gmail.com',
-        //       pass: 'lpctmxmuoudgnopd'
-        //     }
-        //   });
-
-        const mailOptions = {
-            from: 'your_email@example.com',
-            to: user.email,
-            subject: 'Reset your password',
-            text: `You are receiving this because you (or someone else) have requested to reset your password.\n\n
-              Please click on the following link, or paste this into your browser to complete the process:\n\n
-              ${req.headers.origin}/reset-password/${resetToken}\n\n
-              If you did not request this, please ignore this email and your password will remain unchanged.\n`
-        };
-
-        await transporter.sendMail(mailOptions);
-
-        return res.status(200).json({ message: 'Reset password email sent' });
-    } catch (error) {
-        console.error(error);
-        return res.status(500).json({ message: 'Error sending email' });
+  
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
     }
-});
+  
+    try {
+      const user = await User.findOne({ email });
+      console.log('Retrieved user:', user);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+  
+      // Generate token & save on user
+      const resetToken = crypto.randomBytes(20).toString('hex');
+      user.resetPasswordToken = resetToken;
+      user.resetPasswordExpires = Date.now() + 3600_000; // 1 hour
+      await user.save();
+  
+      // Build reset URL
+      const frontendBase = process.env.FRONTEND_URL || req.headers.origin || '';
+      const resetPath = `${frontendBase.replace(/\/$/, '')}/reset-password/${resetToken}`;
+      const subject = 'Reset your password';
+      const text = `You are receiving this because you (or someone else) have requested to reset your password.\n\n` +
+        `Please click on the following link, or paste this into your browser to complete the process:\n\n` +
+        `${resetPath}\n\n` +
+        `If you did not request this, please ignore this email and your password will remain unchanged.\n`;
+  
+      const html = `
+        <div style="font-family: sans-serif; color: #222;">
+          <h2>Password reset request</h2>
+          <p>Hello ${user.name || user.email},</p>
+          <p>You (or someone else) requested to reset the password for your account.</p>
+          <p>
+            <a href="${resetPath}" style="display:inline-block;padding:10px 16px;background:#4CAF50;color:#fff;border-radius:6px;text-decoration:none;">
+              Reset Password
+            </a>
+          </p>
+          <p>If the button doesn't work, copy and paste the following link into your browser:</p>
+          <pre style="white-space:pre-wrap;">${resetPath}</pre>
+          <p>If you did not request this, you can safely ignore this email — your password will remain unchanged.</p>
+          <hr/>
+          <small>This link expires in 1 hour.</small>
+        </div>
+      `;
+  
+      // Read env config
+      const smtpHost = process.env.SMTP_HOST;
+      const smtpPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+      const smtpUser = process.env.SMTP_USER;
+      const smtpPass = process.env.SMTP_PASS;
+      const smtpCrypto = (process.env.SMTP_CRYPTO || 'tls').toLowerCase();
+  
+      const phpEndpoint = process.env.HOSTINGER_MAILER_URL; // optional
+      const apiKey = process.env.HOSTINGER_API_KEY;
+      const fromEmail = process.env.FROM_EMAIL || smtpUser || 'no-reply@example.com';
+      const fromName = process.env.FROM_NAME || 'No Reply';
+  
+      // If Hostinger PHP endpoint + API key present, prefer that (keeps your PHP mailer flow)
+      if (phpEndpoint && apiKey) {
+        try {
+          const payload = {
+            smtpHost,
+            smtpPort,
+            smtpUser,
+            smtpPass,
+            smtpCrypto,
+            fromEmail,
+            fromName,
+            to: user.email,
+            subject,
+            text,
+            html,
+            meta: { userId: user._id, resetToken },
+          };
+  
+          const resp = await axios.post(phpEndpoint, payload, {
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-KEY': apiKey,
+            },
+            timeout: Number(process.env.EMAIL_REQUEST_TIMEOUT_MS || 30000),
+          });
+  
+          if (resp.data && resp.data.success) {
+            return res.status(200).json({ message: 'Reset password email sent' });
+          }
+  
+          console.error('Hostinger response (unexpected):', resp.data);
+          return res.status(502).json({ message: 'Mail service returned an unexpected response', details: resp.data });
+        } catch (err) {
+          console.error('⚠️ Error calling Hostinger sendemail:');
+          console.error('Message:', err.message);
+          if (err.code) console.error('Code:', err.code);
+          if (err.config && err.config.url) console.error('Request URL:', err.config.url);
+          if (err.response) {
+            console.error('Status:', err.response.status);
+            console.error('Response Data:', err.response.data);
+          } else {
+            console.error('No response received from Hostinger (network or timeout).');
+          }
+  
+          return res.status(500).json({
+            message: 'Failed to send reset email via mail endpoint',
+            error: err.message,
+            details: {
+              code: err.code || null,
+              status: err.response ? err.response.status : null,
+              data: err.response ? err.response.data : null,
+            },
+          });
+        }
+      }
+  
+      // Otherwise send directly via nodemailer
+      if (!smtpUser || !smtpPass || !smtpHost) {
+        console.error('Missing SMTP config in environment variables for direct SMTP send.');
+        return res.status(500).json({
+          message: 'Server SMTP configuration incomplete (SMTP_HOST, SMTP_USER, SMTP_PASS required).',
+        });
+      }
+  
+      try {
+        const secure = smtpCrypto === 'ssl' || Number(smtpPort) === 465;
+        const transporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: smtpPort || (secure ? 465 : 587),
+          secure,
+          auth: {
+            user: smtpUser,
+            pass: smtpPass,
+          },
+        });
+  
+        const mailOptions = {
+          from: `"${fromName}" <${fromEmail}>`,
+          to: user.email,
+          subject,
+          text,
+          html,
+        };
+  
+        const info = await transporter.sendMail(mailOptions);
+        console.log('Reset password email sent via SMTP:', info && (info.messageId || info.accepted));
+        return res.status(200).json({ message: 'Reset password email sent' });
+      } catch (err) {
+        console.error('Error sending reset email via SMTP:');
+        console.error('Message:', err.message);
+        if (err.code) console.error('Code:', err.code);
+        if (err.response) console.error('Response:', err.response);
+        return res.status(500).json({ message: 'Error sending email', error: err.message || String(err) });
+      }
+    } catch (error) {
+      console.error('Unhandled error in /forgot-password:', error);
+      return res.status(500).json({ message: 'Error processing request' });
+    }
+  });
+  
 
 router.post('/reset-password', async (req, res) => {
     const { resetPasswordToken, newPassword } = req.body;
@@ -3544,90 +4628,93 @@ async function getCompanyName(userId) {
 }
 
 // Function to send a welcome email
-function sendTeamWelcomeEmail(userEmail, name, isFirstTimeLogin, companyName) {
-    if (!isFirstTimeLogin) {
-        console.log('Not sending welcome email as it is not the first time login.');
-        return; // Do not send email if it's not the first time login
-    }
+// function sendTeamWelcomeEmail(userEmail, name, isFirstTimeLogin, companyName) {
+//     if (!isFirstTimeLogin) {
+//         console.log('Not sending welcome email as it is not the first time login.');
+//         return; // Do not send email if it's not the first time login
+//     }
 
-    const subject = `Welcome to ${companyName} Team!!`;
-    const message = `<html xmlns:v="urn:schemas-microsoft-com:vml">
-        <head></head>
-        <body style="background-color:#c5c1c187; margin-top: 40px;">
-            <section style="font-family:sans-serif; width: 60%; margin: auto;">
-                <header style="background-color: #fff; padding: 20px; border: 1px solid #faf8f8;">
-                    <div style="width: 100%; margin: auto; display: flex; align-items: center;">
-                        <div style="width: 40%;">
-                            <img src="welcome.jpg" alt="welcome image">
-                        </div>
-                        <div style="width: 60%;">
-                            <h2>INVOICE</h2>
-                        </div>
-                        <div style="clear:both ;"></div>
-                    </div>
+//     const subject = `Welcome to ${companyName} Team!!`;
+//     const message = `<html xmlns:v="urn:schemas-microsoft-com:vml">
+//         <head></head>
+//         <body style="background-color:#c5c1c187; margin-top: 40px;">
+//             <section style="font-family:sans-serif; width: 60%; margin: auto;">
+//                 <header style="background-color: #fff; padding: 20px; border: 1px solid #faf8f8;">
+//                     <div style="width: 100%; margin: auto; display: flex; align-items: center;">
+//                         <div style="width: 40%;">
+//                             <img src="welcome.jpg" alt="welcome image">
+//                         </div>
+//                         <div style="width: 60%;">
+//                             <h2>INVOICE</h2>
+//                         </div>
+//                         <div style="clear:both ;"></div>
+//                     </div>
 
-                    <div>
-                        <p>Dear ${name},</p>
-                        <p>I am delighted to extend a warm welcome to you as the newest member of the ${companyName} family! We are thrilled to have you on board and look forward to the positive contributions you will make to our team.</p>
-                        <p>We are excited to work alongside you and support your professional growth and development.</p>
-                    </div>
-                </header>
-                <footer style="background-color:#f5f5f587; border: 1px solid #f5f5f587; padding: 20px; color: #888; text-align: center;">
-                    <div>
-                        <p>&copy; 2024 Invoice. All rights reserved.</p>
-                        <p>Contact us: info@invoice.com | Phone: (555) 123-4567</p>
-                        <h4>Available On</h4>
-                        <div>
-                            <ul style="text-align: center;display: inline-flex;list-style:none;padding-left:0px">
-                                <li>
-                                    <a href="">
-                                        <img src="https://static.xx.fbcdn.net/rsrc.php/yb/r/hLRJ1GG_y0J.ico" alt="facebook icon" style="margin: 0px 5px;">
-                                    </a>
-                                </li>
-                                <li>
-                                    <a href="">
-                                        <img src="https://static.cdninstagram.com/rsrc.php/y4/r/QaBlI0OZiks.ico" alt="instagram icon" style="margin: 0px 5px;">
-                                    </a>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                </footer>
-            </section>
-        </body>
-    </html>`;
+//                     <div>
+//                         <p>Dear ${name},</p>
+//                         <p>I am delighted to extend a warm welcome to you as the newest member of the ${companyName} family! We are thrilled to have you on board and look forward to the positive contributions you will make to our team.</p>
+//                         <p>We are excited to work alongside you and support your professional growth and development.</p>
+//                     </div>
+//                 </header>
+//                 <footer style="background-color:#f5f5f587; border: 1px solid #f5f5f587; padding: 20px; color: #888; text-align: center;">
+//                     <div>
+//                         <p>&copy; 2024 Invoice. All rights reserved.</p>
+//                         <p>Contact us: info@invoice.com | Phone: (555) 123-4567</p>
+//                         <h4>Available On</h4>
+//                         <div>
+//                             <ul style="text-align: center;display: inline-flex;list-style:none;padding-left:0px">
+//                                 <li>
+//                                     <a href="">
+//                                         <img src="https://static.xx.fbcdn.net/rsrc.php/yb/r/hLRJ1GG_y0J.ico" alt="facebook icon" style="margin: 0px 5px;">
+//                                     </a>
+//                                 </li>
+//                                 <li>
+//                                     <a href="">
+//                                         <img src="https://static.cdninstagram.com/rsrc.php/y4/r/QaBlI0OZiks.ico" alt="instagram icon" style="margin: 0px 5px;">
+//                                     </a>
+//                                 </li>
+//                             </ul>
+//                         </div>
+//                     </div>
+//                 </footer>
+//             </section>
+//         </body>
+//     </html>`;
 
-    const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: "canadianscrewpiles@gmail.com",
-            pass: "vhjcbemwmrynvmcr"
-        },
-    });
-    // const transporter = nodemailer.createTransport({
-    //     host: 'smtp.hostinger.com', // Replace with your hosting provider's SMTP server
-    //     port: 465, // Replace with the appropriate port
-    //     secure: true, // true for 465, false for other ports
-    //     auth: {
-    //       user: 'canadianscrewpiles@gmail.com',
-    //       pass: 'lpctmxmuoudgnopd'
-    //     }
-    //   });
+//     const transporter = nodemailer.createTransport({
+//         service: 'gmail',
+//         auth: {
+//             user: "canadianscrewpiles@gmail.com",
+//             pass: "vhjcbemwmrynvmcr"
+//         },
+//     });
+//     // const transporter = nodemailer.createTransport({
+//     //     host: 'smtp.hostinger.com', // Replace with your hosting provider's SMTP server
+//     //     port: 465, // Replace with the appropriate port
+//     //     secure: true, // true for 465, false for other ports
+//     //     auth: {
+//     //       user: 'canadianscrewpiles@gmail.com',
+//     //       pass: 'lpctmxmuoudgnopd'
+//     //     }
+//     //   });
 
-    const mailOptions = {
-        from: 'canadianscrewpiles@gmail.com',
-        to: userEmail,
-        subject: subject,
-        html: message,
-    };
+//     const mailOptions = {
+//         from: 'canadianscrewpiles@gmail.com',
+//         to: userEmail,
+//         subject: subject,
+//         html: message,
+//     };
 
-    transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-            console.log('Error sending email:', error);
-        } else {
-            console.log('Email sent:', info.response);
-        }
-    });
+//     transporter.sendMail(mailOptions, (error, info) => {
+//         if (error) {
+//             console.log('Error sending email:', error);
+//         } else {
+//             console.log('Email sent:', info.response);
+//         }
+//     });
+// }
+
+async function sendTeamWelcomeEmail(userEmail, name, isFirstTimeLogin, companyName) {
 }
 
 router.get('/teammemberdata/:userid', async (req, res) => {
@@ -4297,159 +5384,397 @@ router.post('/conformityReport', async (req, res) => {
   });
 
 
-router.post('/sendConformityReportEmail', async (req, res) => {
-    try {
-        console.log('Request body:', req.body);
+// router.post('/sendConformityReportEmail', async (req, res) => {
+//     try {
+//         console.log('Request body:', req.body);
         
-        const { to, bcc, pdfAttachment, reportId } = req.body;
+//         const { to, bcc, pdfAttachment, reportId } = req.body;
         
-        // Validate required fields
-        if (!pdfAttachment) {
-            return res.status(400).json({ success: false, error: 'No PDF attachment provided' });
-        }
+//         // Validate required fields
+//         if (!pdfAttachment) {
+//             return res.status(400).json({ success: false, error: 'No PDF attachment provided' });
+//         }
 
-        // Extract base64 data (remove Data URI prefix if present)
-        const base64Data = pdfAttachment.split('base64,')[1] || pdfAttachment;
+//         // Extract base64 data (remove Data URI prefix if present)
+//         const base64Data = pdfAttachment.split('base64,')[1] || pdfAttachment;
 
-        // Ensure 'to' is an array
-        const toEmails = Array.isArray(to) ? to : 
-                         (typeof to === 'string' ? JSON.parse(to) : []);
+//         // Ensure 'to' is an array
+//         const toEmails = Array.isArray(to) ? to : 
+//                          (typeof to === 'string' ? JSON.parse(to) : []);
 
-        // Ensure 'bcc' is an array
-        const bccEmails = Array.isArray(bcc) ? bcc : 
-                         (bcc && typeof bcc === 'string' ? JSON.parse(bcc) : []);
+//         // Ensure 'bcc' is an array
+//         const bccEmails = Array.isArray(bcc) ? bcc : 
+//                          (bcc && typeof bcc === 'string' ? JSON.parse(bcc) : []);
 
-        if (!toEmails.length) {
-            return res.status(400).json({ success: false, error: 'No recipients specified' });
-        }
+//         if (!toEmails.length) {
+//             return res.status(400).json({ success: false, error: 'No recipients specified' });
+//         }
 
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                user: "canadianscrewpiles@gmail.com",
-                pass: "vhjcbemwmrynvmcr"
-            },
-        });
+//         const transporter = nodemailer.createTransport({
+//             service: 'gmail',
+//             auth: {
+//                 user: "canadianscrewpiles@gmail.com",
+//                 pass: "vhjcbemwmrynvmcr"
+//             },
+//         });
     
-        const mailOptions = {
-            from: 'canadianscrewpiles@gmail.com',
-            to: toEmails.join(', '),
-            bcc: bccEmails.join(', '),
-            subject: `Conformity Report #${reportId} - Canadian Screw Piles`,
-            attachments: [
-                {
-                    filename: `ConformityReport_${reportId}.pdf`,
-                    content: base64Data,
-                    encoding: 'base64'
-                }
-            ],
-            html: `<!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <title>Conformity Report - Canadian Screw Piles</title>
-                <style>
-                    body {
-                        background-color: #f5f5f5;
-                        margin: 0;
-                        padding: 20px 0;
-                        font-family: Arial, sans-serif;
-                        color: #333;
-                    }
-                    .email-container {
-                        width: 100%;
-                        max-width: 600px;
-                        margin: 0 auto;
-                        background-color: #ffffff;
-                        border-radius: 8px;
-                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                    }
-                    .header {
-                        padding: 20px;
-                        text-align: center;
-                        border-bottom: 1px solid #eeeeee;
-                    }
-                    .content {
-                        padding: 25px;
-                    }
-                    .report-details {
-                        background-color: #f9f9f9;
-                        padding: 20px;
-                        border-radius: 6px;
-                        margin-bottom: 25px;
-                    }
-                    .footer {
-                        padding: 20px;
-                        text-align: center;
-                        background-color: #f5f5f5;
-                        border-top: 1px solid #eeeeee;
-                        font-size: 12px;
-                        color: #777777;
-                    }
-                    .btn {
-                        display: inline-block;
-                        padding: 12px 24px;
-                        background-color: #007BFF;
-                        color: white;
-                        text-decoration: none;
-                        border-radius: 4px;
-                        font-weight: bold;
-                        margin: 15px 0;
-                    }
-                    .signature {
-                        margin-top: 30px;
-                        border-top: 1px solid #eeeeee;
-                        padding-top: 20px;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="email-container">
-                    <div class="header">
-                        <h1 style="color: #007BFF; margin-bottom: 5px;">Canadian Screw Piles</h1>
-                        <p style="margin-top: 0; color: #666666;">Unit #101 3425 29 St NE Calgary, AB</p>
-                    </div>
+//         const mailOptions = {
+//             from: 'canadianscrewpiles@gmail.com',
+//             to: toEmails.join(', '),
+//             bcc: bccEmails.join(', '),
+//             subject: `Conformity Report #${reportId} - Canadian Screw Piles`,
+//             attachments: [
+//                 {
+//                     filename: `ConformityReport_${reportId}.pdf`,
+//                     content: base64Data,
+//                     encoding: 'base64'
+//                 }
+//             ],
+//             html: `<!DOCTYPE html>
+//             <html>
+//             <head>
+//                 <meta charset="UTF-8">
+//                 <title>Conformity Report - Canadian Screw Piles</title>
+//                 <style>
+//                     body {
+//                         background-color: #f5f5f5;
+//                         margin: 0;
+//                         padding: 20px 0;
+//                         font-family: Arial, sans-serif;
+//                         color: #333;
+//                     }
+//                     .email-container {
+//                         width: 100%;
+//                         max-width: 600px;
+//                         margin: 0 auto;
+//                         background-color: #ffffff;
+//                         border-radius: 8px;
+//                         box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+//                     }
+//                     .header {
+//                         padding: 20px;
+//                         text-align: center;
+//                         border-bottom: 1px solid #eeeeee;
+//                     }
+//                     .content {
+//                         padding: 25px;
+//                     }
+//                     .report-details {
+//                         background-color: #f9f9f9;
+//                         padding: 20px;
+//                         border-radius: 6px;
+//                         margin-bottom: 25px;
+//                     }
+//                     .footer {
+//                         padding: 20px;
+//                         text-align: center;
+//                         background-color: #f5f5f5;
+//                         border-top: 1px solid #eeeeee;
+//                         font-size: 12px;
+//                         color: #777777;
+//                     }
+//                     .btn {
+//                         display: inline-block;
+//                         padding: 12px 24px;
+//                         background-color: #007BFF;
+//                         color: white;
+//                         text-decoration: none;
+//                         border-radius: 4px;
+//                         font-weight: bold;
+//                         margin: 15px 0;
+//                     }
+//                     .signature {
+//                         margin-top: 30px;
+//                         border-top: 1px solid #eeeeee;
+//                         padding-top: 20px;
+//                     }
+//                 </style>
+//             </head>
+//             <body>
+//                 <div class="email-container">
+//                     <div class="header">
+//                         <h1 style="color: #007BFF; margin-bottom: 5px;">Canadian Screw Piles</h1>
+//                         <p style="margin-top: 0; color: #666666;">Unit #101 3425 29 St NE Calgary, AB</p>
+//                     </div>
                     
-                    <div class="content">
-                        <h2 style="margin-top: 0;">Conformity Report #${reportId}</h2>
-                        <p>Dear Recipient,</p>
+//                     <div class="content">
+//                         <h2 style="margin-top: 0;">Conformity Report #${reportId}</h2>
+//                         <p>Dear Recipient,</p>
                         
-                        <div class="report-details">
-                            <p>Please find attached the Conformity Report for your project:</p>
+//                         <div class="report-details">
+//                             <p>Please find attached the Conformity Report for your project:</p>
                         
                             
                            
-                        </div>
+//                         </div>
                         
-                        <p>This email contains sensitive information. Please do not share it with unauthorized parties.</p>
+//                         <p>This email contains sensitive information. Please do not share it with unauthorized parties.</p>
                         
-                        <div class="signature">
-                            <p>Sincerely,</p>
-                            <img src="cid:signature" alt="Signature" style="height: 50px;">
-                            <p>Canadian Screw Piles Team</p>
-                            <p>Phone: (403) - 439 - 7700</p>
-                        </div>
-                    </div>
+//                         <div class="signature">
+//                             <p>Sincerely,</p>
+//                             <img src="cid:signature" alt="Signature" style="height: 50px;">
+//                             <p>Canadian Screw Piles Team</p>
+//                             <p>Phone: (403) - 439 - 7700</p>
+//                         </div>
+//                     </div>
                     
-                    <div class="footer">
-                        <p>© ${new Date().getFullYear()} Canadian Screw Piles. All rights reserved.</p>
-                        <p>
-                            <a href="#" style="margin: 0 10px; color: #007BFF; text-decoration: none;">Website</a>
-                            <a href="#" style="margin: 0 10px; color: #007BFF; text-decoration: none;">Contact Us</a>
-                        </p>
+//                     <div class="footer">
+//                         <p>© ${new Date().getFullYear()} Canadian Screw Piles. All rights reserved.</p>
+//                         <p>
+//                             <a href="#" style="margin: 0 10px; color: #007BFF; text-decoration: none;">Website</a>
+//                             <a href="#" style="margin: 0 10px; color: #007BFF; text-decoration: none;">Contact Us</a>
+//                         </p>
+//                     </div>
+//                 </div>
+//             </body>
+//             </html>`,
+//         };
+
+//         await transporter.sendMail(mailOptions);
+//         console.log('Email sent successfully!');
+//         res.status(200).json({ success: true });
+//     } catch (error) {
+//         console.error('Error sending email:', error);
+//         res.status(500).json({ success: false, error: 'Failed to send email.' });
+//     }
+// });
+
+
+function normalizeRecipients(value) {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      // Try to parse JSON array string like '["a@x.com","b@x.com"]'
+      if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || trimmed.includes('","')) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed)) return parsed;
+        } catch (e) {
+          // ignore parse error and fall back
+        }
+      }
+      // Split comma separated string
+      return trimmed.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    return [];
+  }
+  
+  router.post('/sendConformityReportEmail', async (req, res) => {
+    try {
+      console.log('Request body:', req.body);
+  
+      const { to, bcc, pdfAttachment, reportId } = req.body;
+  
+      if (!pdfAttachment) {
+        return res.status(400).json({ success: false, error: 'No PDF attachment provided' });
+      }
+  
+      // Extract base64 (handle 'data:application/pdf;base64,...' or raw base64)
+      const base64Match = typeof pdfAttachment === 'string' && pdfAttachment.match(/base64,(.*)$/);
+      const base64Data = base64Match ? base64Match[1] : pdfAttachment;
+  
+      // Normalize recipients
+      const toEmails = normalizeRecipients(to);
+      const bccEmails = normalizeRecipients(bcc);
+  
+      if (!toEmails.length) {
+        return res.status(400).json({ success: false, error: 'No recipients specified' });
+      }
+  
+      // Env-driven settings
+      const smtpHost = process.env.SMTP_HOST;
+      const smtpPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+      const smtpUser = process.env.SMTP_USER;
+      const smtpPass = process.env.SMTP_PASS;
+      const smtpCrypto = (process.env.SMTP_CRYPTO || 'tls').toLowerCase();
+  
+      const phpEndpoint = process.env.HOSTINGER_MAILER_URL; // optional
+      const apiKey = process.env.HOSTINGER_API_KEY;
+  
+      const fromEmail = process.env.FROM_EMAIL || smtpUser || 'no-reply@example.com';
+      const fromName = process.env.FROM_NAME || 'Canadian Screw Piles';
+      const subject = `Conformity Report #${reportId} - Canadian Screw Piles`;
+      const filename = `ConformityReport_${reportId}.pdf`;
+  
+      // HTML body (kept from your original, minor safe fallbacks)
+      const html = `<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Conformity Report - Canadian Screw Piles</title>
+            <style>
+                body { background-color: #f5f5f5; margin: 0; padding: 20px 0; font-family: Arial, sans-serif; color: #333; }
+                .email-container { width: 100%; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                .header { padding: 20px; text-align: center; border-bottom: 1px solid #eeeeee; }
+                .content { padding: 25px; }
+                .report-details { background-color: #f9f9f9; padding: 20px; border-radius: 6px; margin-bottom: 25px; }
+                .footer { padding: 20px; text-align: center; background-color: #f5f5f5; border-top: 1px solid #eeeeee; font-size: 12px; color: #777777; }
+                .btn { display: inline-block; padding: 12px 24px; background-color: #007BFF; color: white; text-decoration: none; border-radius: 4px; font-weight: bold; margin: 15px 0; }
+                .signature { margin-top: 30px; border-top: 1px solid #eeeeee; padding-top: 20px; }
+            </style>
+        </head>
+        <body>
+            <div class="email-container">
+                <div class="header">
+                    <h1 style="color: #007BFF; margin-bottom: 5px;">Canadian Screw Piles</h1>
+                    <p style="margin-top: 0; color: #666666;">Unit #101 3425 29 St NE Calgary, AB</p>
+                </div>
+                <div class="content">
+                    <h2 style="margin-top: 0;">Conformity Report #${reportId}</h2>
+                    <p>Dear Recipient,</p>
+                    <div class="report-details">
+                        <p>Please find attached the Conformity Report for your project.</p>
+                    </div>
+                    <p>This email contains sensitive information. Please do not share it with unauthorized parties.</p>
+                    <div class="signature">
+                        <p>Sincerely,</p>
+                        <img src="cid:signature" alt="Signature" style="height: 50px;">
+                        <p>Canadian Screw Piles Team</p>
+                        <p>Phone: (403) - 439 - 7700</p>
                     </div>
                 </div>
-            </body>
-            </html>`,
+                <div class="footer">
+                    <p>© ${new Date().getFullYear()} Canadian Screw Piles. All rights reserved.</p>
+                    <p>
+                        <a href="#" style="margin: 0 10px; color: #007BFF; text-decoration: none;">Website</a>
+                        <a href="#" style="margin: 0 10px; color: #007BFF; text-decoration: none;">Contact Us</a>
+                    </p>
+                </div>
+            </div>
+        </body>
+        </html>`;
+  
+      // Optional signature image in env (raw base64 or data URI). If present, include as inline attachment with cid 'signature'
+      let signatureAttachment = null;
+      const sigEnv = process.env.SIGNATURE_IMAGE_BASE64; // can be data:image/png;base64,... or raw base64
+      if (sigEnv) {
+        const sigBase64Match = sigEnv.match(/base64,(.*)$/);
+        const sigBase64 = sigBase64Match ? sigBase64Match[1] : sigEnv;
+        signatureAttachment = {
+          filename: 'signature.png',
+          content: Buffer.from(sigBase64, 'base64'),
+          cid: 'signature',
         };
-
-        await transporter.sendMail(mailOptions);
-        console.log('Email sent successfully!');
-        res.status(200).json({ success: true });
+      }
+  
+      // If Hostinger PHP endpoint is configured, prefer using it (keeps your current PHP mailer)
+      if (phpEndpoint && apiKey) {
+        try {
+          const payload = {
+            smtpHost,
+            smtpPort,
+            smtpUser,
+            smtpPass,
+            smtpCrypto,
+            fromEmail,
+            fromName,
+            to: toEmails.join(', '),
+            bcc: bccEmails.length ? bccEmails.join(', ') : undefined,
+            subject,
+            html,
+            attachments: [
+              {
+                filename,
+                contentBase64: base64Data,
+                contentType: 'application/pdf',
+              },
+              // Optionally include signature image if available
+              ...(signatureAttachment ? [{
+                filename: signatureAttachment.filename,
+                contentBase64: signatureAttachment.content.toString('base64'),
+                contentType: 'image/png',
+                cid: signatureAttachment.cid,
+              }] : []),
+            ],
+          };
+  
+          const resp = await axios.post(phpEndpoint, payload, {
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-KEY': apiKey,
+            },
+            timeout: Number(process.env.EMAIL_REQUEST_TIMEOUT_MS || 30000),
+          });
+  
+          if (resp.data && resp.data.success) {
+            return res.status(200).json({ success: true, data: resp.data });
+          }
+  
+          console.error('Hostinger response:', resp.data);
+          return res.status(502).json({ success: false, error: resp.data || 'Unknown response from mail endpoint' });
+        } catch (err) {
+          console.error('⚠️ Error calling Hostinger sendemail:');
+          console.error('Message:', err.message);
+          if (err.code) console.error('Code:', err.code);
+          if (err.config && err.config.url) console.error('Request URL:', err.config.url);
+          if (err.response) {
+            console.error('Status:', err.response.status);
+            console.error('Status Text:', err.response.statusText);
+            console.error('Headers:', err.response.headers);
+            console.error('Response Data:', err.response.data);
+          } else {
+            console.error('No response received from Hostinger (network or timeout).');
+          }
+  
+          return res.status(500).json({
+            success: false,
+            error: err.message || 'Failed to contact Hostinger mailer',
+            details: {
+              code: err.code || null,
+              status: err.response ? err.response.status : null,
+              data: err.response ? err.response.data : null,
+            },
+          });
+        }
+      }
+  
+      // Otherwise send directly via nodemailer
+      if (!smtpHost || !smtpUser || !smtpPass) {
+        console.error('Missing SMTP config in environment variables for direct SMTP send.');
+        return res.status(500).json({
+          success: false,
+          error: 'Server SMTP configuration incomplete (SMTP_HOST, SMTP_USER, SMTP_PASS required).',
+        });
+      }
+  
+      const secure = smtpCrypto === 'ssl' || Number(smtpPort) === 465;
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort || (secure ? 465 : 587),
+        secure,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+      });
+  
+      const attachments = [
+        {
+          filename,
+          content: Buffer.from(base64Data, 'base64'),
+          contentType: 'application/pdf',
+        },
+      ];
+      if (signatureAttachment) attachments.push(signatureAttachment);
+  
+      const mailOptions = {
+        from: `"${fromName}" <${fromEmail}>`,
+        to: toEmails.join(', '),
+        bcc: bccEmails.length ? bccEmails.join(', ') : undefined,
+        subject,
+        html,
+        attachments,
+      };
+  
+      const info = await transporter.sendMail(mailOptions);
+      console.log('Email sent via SMTP:', info && (info.messageId || info.accepted));
+      return res.status(200).json({ success: true, info });
     } catch (error) {
-        console.error('Error sending email:', error);
-        res.status(500).json({ success: false, error: 'Failed to send email.' });
+      console.error('Error sending email:', error);
+      return res.status(500).json({ success: false, error: 'Failed to send email.', details: error.message || String(error) });
     }
-});
+  });
+  
 
 module.exports = router;

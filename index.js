@@ -127,6 +127,9 @@ app.use('/api', require('./Routes/DisplayData'));
 app.use('/api', require('./Routes/OrderData'));
 app.use('/api', require('./Routes/TestApi'));
 app.use('/api', require('./Routes/ForgotPassword'));
-
+const port = process.env.PORT || 3001; // change to 30001 if you want that port
+// app.listen(port, () => {
+//   console.log(`Local dev server listening on http://localhost:${port}`);
+// });
 // IMPORTANT: export the app for @vercel/node instead of calling app.listen()
 module.exports = app;

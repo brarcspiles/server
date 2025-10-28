@@ -57,59 +57,59 @@
 // app.listen(port, () => {
 //   console.log(`Example app listening on port ${port}`)
 // })
+
+// invoiceServer/index.js
 const express = require('express');
+const cors = require('cors');
 const path = require('path');
 const bodyParser = require('body-parser');
 
-const connectDB = require('./db'); // see recommended db.js below
-const createUser = require('./Routes/CreateUser');
-const displayData = require('./Routes/DisplayData');
-const orderData = require('./Routes/OrderData');
-const testApi = require('./Routes/TestApi');
-const forgotPassword = require('./Routes/ForgotPassword');
-// const { job } = require('./cron'); // DO NOT start cron here (see notes)
+const connectDB = require('./db'); // should export a connect function that caches the connection
+// const { job } = require('./cron'); // do NOT start persistent jobs here
 
 const app = express();
 
-// JSON/body limits
+// Body payload limits
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
+app.use(express.json()); // safe to keep
 
-// Connect DB once per cold start (cached in db.js)
-connectDB().catch(err => {
-  // don't crash UI — log and let function return errors on request handlers
-  console.error('DB connect error:', err);
-});
+// CORS config
+const corsOptions = {
+  origin: [
+    'http://localhost:5173',
+    'https://cspiles.vercel.app'
+  ],
+  methods: 'GET, POST, OPTIONS, PUT, DELETE',
+  allowedHeaders: 'Content-Type, Authorization, Origin, X-Requested-With, Accept'
+};
+app.use(cors(corsOptions));
 
-// CORS — whitelist logic
+// Optional: lightweight request logger for debugging on Vercel (remove in production)
 app.use((req, res, next) => {
-  const corsWhitelist = [
-    'https://cspiles.vercel.app',
-    'http://localhost:5173'
-  ];
-  const origin = req.headers.origin;
-  if (origin && corsWhitelist.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin, X-Requested-With, Accept');
-  }
-  // Allow preflight
-  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
   next();
 });
 
-// Static files — note: the Vercel runtime file-system is ephemeral/read-only for writes
+// Connect to DB (serverless-safe — your ./db should implement caching)
+connectDB().then(() => {
+  console.log('DB connected (or connection promise initiated)');
+}).catch(err => {
+  console.error('DB connection error (will try again on demand):', err);
+});
+
+// Static uploads folder (note: runtime filesystem is ephemeral on Vercel)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Health / simple root route
 app.get('/', (req, res) => res.send('API running'));
 
-// Routes
-app.use(express.json());
-app.use('/api', createUser);
-app.use('/api', displayData);
-app.use('/api', orderData);
-app.use('/api', testApi);
-app.use('/api', forgotPassword);
+// Routes (case-sensitive file names must match)
+app.use('/api', require('./Routes/CreateUser'));
+app.use('/api', require('./Routes/DisplayData'));
+app.use('/api', require('./Routes/OrderData'));
+app.use('/api', require('./Routes/TestApi'));
+app.use('/api', require('./Routes/ForgotPassword'));
 
-// Export the app for @vercel/node (DO NOT app.listen)
+// IMPORTANT: export the app for @vercel/node instead of calling app.listen()
 module.exports = app;

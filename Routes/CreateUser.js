@@ -58,6 +58,12 @@ const getCurrencySign = (currency) => {
   };
 
 
+
+router.get('/hello', (req, res) => {
+  res.status(200).json({ message: 'Hello World!' });
+});
+
+
 router.get('/check-signature/:ownerId', (req, res) => {
     const ownerId = req.params.ownerId;
   

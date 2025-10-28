@@ -85,6 +85,23 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
+// right after app.use(express.json());
+app.use((req, res, next) => {
+  // Avoid logging huge binary bodies in production. This is for debugging short JSON payloads.
+  console.log('---REQ LOG START---');
+  console.log('Time:', new Date().toISOString());
+  console.log('Method:', req.method);
+  console.log('URL:', req.originalUrl);
+  console.log('Headers:', {
+    origin: req.headers.origin,
+    'content-type': req.headers['content-type'],
+    'user-agent': req.headers['user-agent']
+  });
+  console.log('Body:', req.body);
+  console.log('---REQ LOG END---');
+  next();
+});
+
 // Optional: lightweight request logger for debugging on Vercel (remove in production)
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);

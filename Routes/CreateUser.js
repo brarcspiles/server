@@ -2357,12 +2357,20 @@ router.post("/createuser", [
 // Login API
 // Define the login route
 router.post('/login', [
-    body('email').isEmail(),
-    body('password').isLength({ min: 4 }),
+   body('email').isEmail().withMessage('Invalid email'),
+  body('password').isLength({ min: 4 }).withMessage('Password too short'),
   ], async (req, res) => {
+     console.log('LOGIN HANDLER HIT');
+  console.log('Body at login handler:', req.body);
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+        console.log('Validation errors:', errors.array());
+        return res.status(400).json({
+      Success: false,
+      errorMessage: 'Validation failed',
+      errors: errors.array()
+    });
     }
   
     const email = req.body.email;

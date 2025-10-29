@@ -60,7 +60,6 @@
 
 // invoiceServer/index.js
 const express = require('express');
-const cors = require('cors');
 const path = require('path');
 const bodyParser = require('body-parser');
 
@@ -69,23 +68,39 @@ const connectDB = require('./db'); // should export a connect function that cach
 
 const app = express();
 
+// --- CORS preflight/whitelist middleware (MUST run BEFORE body-parsers and routes) ---
+const allowedOrigins = new Set([
+  'http://localhost:5173',
+  'https://cspiles.vercel.app'
+]);
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, Origin, X-Requested-With, Accept'
+  );
+  // optional: allow cookies if you need them (then use credentials on client)
+  // res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+  if (req.method === 'OPTIONS') {
+    // short-circuit preflight requests
+    return res.status(204).end();
+  }
+  next();
+});
+// --- end CORS middleware ---
+
 // Body payload limits
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
 app.use(express.json()); // safe to keep
 
-// CORS config
-const corsOptions = {
-  origin: [
-    'http://localhost:5173',
-    'https://cspiles.vercel.app'
-  ],
-  methods: 'GET, POST, OPTIONS, PUT, DELETE',
-  allowedHeaders: 'Content-Type, Authorization, Origin, X-Requested-With, Accept'
-};
-app.use(cors(corsOptions));
-
-// right after app.use(express.json());
+// lightweight request logger for debugging on Vercel (remove in production)
 app.use((req, res, next) => {
   // Avoid logging huge binary bodies in production. This is for debugging short JSON payloads.
   console.log('---REQ LOG START---');
@@ -102,7 +117,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Optional: lightweight request logger for debugging on Vercel (remove in production)
+// Simple request line logger (optional)
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
   next();
@@ -127,9 +142,10 @@ app.use('/api', require('./Routes/DisplayData'));
 app.use('/api', require('./Routes/OrderData'));
 app.use('/api', require('./Routes/TestApi'));
 app.use('/api', require('./Routes/ForgotPassword'));
-const port = process.env.PORT || 3001; // change to 30001 if you want that port
-// app.listen(port, () => {
-//   console.log(`Local dev server listening on http://localhost:${port}`);
-// });
+
+// Local dev port (not used by Vercel). Use a separate dev-server if you want to `listen()` locally.
+// const port = process.env.PORT || 3001;
+// app.listen(port, () => { console.log(`Local dev server listening on http://localhost:${port}`); });
+
 // IMPORTANT: export the app for @vercel/node instead of calling app.listen()
 module.exports = app;

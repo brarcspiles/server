@@ -2360,6 +2360,7 @@ router.post('/login', [
    body('email').isEmail().withMessage('Invalid email'),
   body('password').isLength({ min: 4 }).withMessage('Password too short'),
   ], async (req, res) => {
+    await connectDB();  
      console.log('LOGIN HANDLER HIT');
   console.log('Body at login handler:', req.body);
 

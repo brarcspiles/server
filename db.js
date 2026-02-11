@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-require("dotenv").config();
 
 const MONGO_URI = process.env.MONGO_URI;
 
@@ -9,12 +8,12 @@ if (!cached) {
   cached = global.mongoose = { conn: null, promise: null };
 }
 
-async function mongoDB() {
+async function connectDB() {
   if (cached.conn) return cached.conn;
 
   if (!cached.promise) {
     cached.promise = mongoose.connect(MONGO_URI, {
-      bufferCommands: false,
+      bufferCommands: false
     });
   }
 
@@ -24,4 +23,4 @@ async function mongoDB() {
   return cached.conn;
 }
 
-module.exports = mongoDB;
+module.exports = connectDB;

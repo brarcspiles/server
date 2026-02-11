@@ -1,26 +1,15 @@
-const mongoose = require("mongoose");
-
-const MONGO_URI = process.env.MONGO_URI;
-
-let cached = global.mongoose;
-
-if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null };
+const mongoose = require('mongoose');
+const mongoURI = 'mongodb+srv://cspiles99:EWfywCdAE15piowt@cluster0.dozoww8.mongodb.net/cspiles?retryWrites=true&w=majority&appName=Cluster0';
+const mongoDB = async() => {
+    mongoose.connect(mongoURI, {useNewUrlParser: true },async (err, result) => {
+    if(err) console.log('Some Error -- ', err)
+        else { 
+             const fetch_data = await mongoose.connection.db.collection("users");
+    console.log("connect");
+        }
+    })
+    
 }
 
-async function connectDB() {
-  if (cached.conn) return cached.conn;
 
-  if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGO_URI, {
-      bufferCommands: false
-    });
-  }
-
-  cached.conn = await cached.promise;
-  console.log("Mongo Connected");
-
-  return cached.conn;
-}
-
-module.exports = connectDB;
+module.exports = mongoDB;

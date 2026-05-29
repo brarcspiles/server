@@ -824,29 +824,7 @@ router.post('/send-invoice-email', async (req, res) => {
     //       pass: 'lpctmxmuoudgnopd'
     //     }
     //   });
-    const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: "canadianscrewpiles@gmail.com",
-            pass: "vhjcbemwmrynvmcr"
-        },
-    });
-
-    const currencySign = getCurrencySign(currencyType);
-
-    const mailOptions = {
-        from: 'canadianscrewpiles@gmail.com',
-        to: to.join(', '),
-        bcc: bcc.join(', '),
-        subject: `Invoice from ${companyName}`,
-        attachments: [
-            {
-                filename: `Invoice #${InvoiceNumber}.pdf`,
-                content: pdfAttachment.split(';base64,')[1], // Extract base64 content
-                encoding: 'base64',
-            }
-        ],
-        html: `<html>
+    const htmlContent =         `<html>
         <body style="background-color:#c5c1c187; margin-top: 40px; padding:20px 0px;">
              <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#fff; padding: 15px 30px; margin-top: 40px;">
                 <div style="padding: 10px 0px;  text-align: center; font-weight: 500; color: #999999">
@@ -886,16 +864,39 @@ router.post('/send-invoice-email', async (req, res) => {
                 </div>
             </section>
         </body>
-            </html>`,
-    };
-
+            </html>`;
     try {
-        await transporter.sendMail(mailOptions);
-        console.log('Email sent successfully!');
-        res.status(200).json({ success: true });
+      const response = await fetch(process.env.EMAIL_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          smtpHost: process.env.SMTP_HOST,
+          smtpPort: process.env.SMTP_PORT,
+          smtpUser: process.env.SMTP_USER,
+          smtpPass: process.env.SMTP_PASS,
+          from: process.env.SMTP_USER,
+          to: to.join(', '),
+          bcc: bcc.join(', '),
+          subject: `Invoice from ${companyName}`,
+          html: htmlContent,
+          attachments: [ { filename: `Invoice #${InvoiceNumber}.pdf`, content: pdfAttachment.split(';base64,')[1], encoding: 'base64' } ]
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("❌ Failed sending email:", data);
+        return res.status(500).json({ success: false, error: "Failed to send email." });
+      }
+
+      console.log("📬 Email sent successfully!");
+      return res.status(200).json({ success: true });
     } catch (error) {
-        console.error('Error sending email:', error);
-        res.status(500).json({ success: false, error: 'Failed to send email.' });
+      console.error("❌ Error sending email:", error.message);
+      return res.status(500).json({ success: false, error: "Failed to contact mail endpoint" });
     }
 });
 
@@ -1250,119 +1251,38 @@ router.post('/send-deposit-email', async (req, res) => {
       </body>
       </html>`;
   
-    // If a Hostinger PHP endpoint is configured, prefer sending to that endpoint (keeps your existing PHP mailer flow)
-    if (phpEndpoint && apiKey) {
-      try {
-        const payload = {
-          smtpHost,
-          smtpPort,
-          smtpUser,
-          smtpPass,
-          smtpCrypto,
-          fromEmail: smtpUser,
-          fromName: companyName || 'Your Company',
+    try {
+      const response = await fetch(process.env.EMAIL_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          smtpHost: process.env.SMTP_HOST,
+          smtpPort: process.env.SMTP_PORT,
+          smtpUser: process.env.SMTP_USER,
+          smtpPass: process.env.SMTP_PASS,
+          from: process.env.SMTP_USER,
           to: toStr,
           bcc: bccStr,
-          subject,
-          html,
-          attachments: [
-            {
-              filename,
-              contentBase64: attachmentBase64,
-              contentType: 'application/pdf',
-            },
-          ],
-        };
-  
-        const resp = await axios.post(phpEndpoint, payload, {
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-KEY': apiKey,
-          },
-          timeout: Number(process.env.EMAIL_REQUEST_TIMEOUT_MS || 30000),
-        });
-  
-        if (resp.data && resp.data.success) {
-          return res.status(200).json({ success: true, data: resp.data });
-        }
-  
-        console.error('Hostinger response:', resp.data);
-        return res.status(502).json({
-          success: false,
-          error: resp.data || 'Unknown response from Hostinger mail endpoint',
-        });
-      } catch (err) {
-        console.error('⚠️ Error calling Hostinger sendemail:');
-        console.error('Message:', err.message);
-        if (err.code) console.error('Code:', err.code);
-        if (err.config && err.config.url) console.error('Request URL:', err.config.url);
-        if (err.response) {
-          console.error('Status:', err.response.status);
-          console.error('Status Text:', err.response.statusText);
-          console.error('Headers:', err.response.headers);
-          console.error('Response Data:', err.response.data);
-        } else {
-          console.error('No response received from Hostinger (network or timeout).');
-        }
-  
-        return res.status(500).json({
-          success: false,
-          error: err.message || 'Failed to contact Hostinger mailer',
-          details: {
-            code: err.code || null,
-            status: err.response ? err.response.status : null,
-            data: err.response ? err.response.data : null,
-          },
-        });
+          subject: subject,
+          html: html,
+          attachments: [ { filename, content: attachmentBase64, encoding: 'base64' } ]
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("❌ Failed sending email:", data);
+        return res.status(500).json({ success: false, error: "Failed to send email." });
       }
-    }
-  
-    // Otherwise fallback to sending directly via nodemailer SMTP
-    if (!smtpUser || !smtpPass || !smtpHost) {
-      console.error('Missing SMTP config in environment variables for direct SMTP send.');
-      return res.status(500).json({
-        success: false,
-        error: 'Server SMTP configuration incomplete (SMTP_HOST, SMTP_USER, SMTP_PASS required).',
-      });
-    }
-  
-    try {
-      const secure = smtpCrypto === 'ssl' || Number(smtpPort) === 465;
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort || (secure ? 465 : 587),
-        secure,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
-        },
-        // optional: you can add tls: { rejectUnauthorized: false } if needed (not recommended for prod)
-      });
-  
-      const mailOptions = {
-        from: smtpUser,
-        to: toStr,
-        bcc: bccStr,
-        subject,
-        html,
-        attachments: [
-          {
-            filename,
-            content: Buffer.from(attachmentBase64, 'base64'),
-            contentType: 'application/pdf',
-          },
-        ],
-      };
-  
-      const info = await transporter.sendMail(mailOptions);
-      console.log('Email sent:', info && (info.messageId || info.accepted));
-      return res.status(200).json({ success: true, info });
-    } catch (err) {
-      console.error('Error sending email via SMTP:');
-      console.error('Message:', err.message);
-      if (err.code) console.error('Code:', err.code);
-      if (err.response) console.error('Response:', err.response);
-      return res.status(500).json({ success: false, error: err.message || 'Failed to send email via SMTP' });
+
+      console.log("📬 Email sent successfully!");
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      console.error("❌ Error sending email:", error.message);
+      return res.status(500).json({ success: false, error: "Failed to contact mail endpoint" });
     }
   });
   
@@ -1710,88 +1630,39 @@ router.post('/send-waiver-request', async (req, res) => {
         </body>
         </html>`;
   
-      // If Hostinger PHP endpoint + API key are configured, prefer using it
-      if (phpEndpoint && apiKey) {
-        try {
-          const payload = {
-            smtpHost,
-            smtpPort,
-            smtpUser,
-            smtpPass,
-            smtpCrypto,
-            fromEmail,
-            fromName,
-            to: toEmails.join(', '),
-            subject,
-            html,
-            meta: { waiverId, userId },
-          };
-  
-          const resp = await axios.post(phpEndpoint, payload, {
-            headers: {
-              'Content-Type': 'application/json',
-              'X-API-KEY': apiKey,
-            },
-            timeout: Number(process.env.EMAIL_REQUEST_TIMEOUT_MS || 30000),
-          });
-  
-          if (resp.data && resp.data.success) {
-            return res.status(200).json({ success: true, waiverId });
-          }
-  
-          console.error('Hostinger response:', resp.data);
-          return res.status(502).json({ success: false, error: resp.data || 'Mail endpoint returned unexpected response' });
-        } catch (err) {
-          console.error('⚠️ Error calling Hostinger sendemail:');
-          console.error('Message:', err.message);
-          if (err.code) console.error('Code:', err.code);
-          if (err.config && err.config.url) console.error('Request URL:', err.config.url);
-          if (err.response) {
-            console.error('Status:', err.response.status);
-            console.error('Response Data:', err.response.data);
-          } else {
-            console.error('No response received from Hostinger (network or timeout).');
-          }
-  
-          return res.status(500).json({
-            success: false,
-            error: err.message || 'Failed to contact mail endpoint',
-            details: {
-              code: err.code || null,
-              status: err.response ? err.response.status : null,
-              data: err.response ? err.response.data : null,
-            },
-          });
-        }
-      }
-  
-      // Otherwise send directly via nodemailer
-      if (!smtpHost || !smtpUser || !smtpPass) {
-        console.error('Missing SMTP config in environment variables for direct SMTP send.');
-        return res.status(500).json({
-          success: false,
-          error: 'Server SMTP configuration incomplete (SMTP_HOST, SMTP_USER, SMTP_PASS required).',
-        });
-      }
-  
-      const secure = smtpCrypto === 'ssl' || Number(smtpPort) === 465;
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort || (secure ? 465 : 587),
-        secure,
-        auth: { user: smtpUser, pass: smtpPass },
+    try {
+      const response = await fetch(process.env.EMAIL_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          smtpHost: process.env.SMTP_HOST,
+          smtpPort: process.env.SMTP_PORT,
+          smtpUser: process.env.SMTP_USER,
+          smtpPass: process.env.SMTP_PASS,
+          from: process.env.SMTP_USER,
+          to: toEmails.join(', '),
+          bcc: undefined,
+          subject: subject,
+          html: html,
+          attachments: []
+        })
       });
-  
-      const mailOptions = {
-        from: `"${fromName}" <${fromEmail}>`,
-        to: toEmails.join(', '),
-        subject,
-        html,
-      };
-  
-      const info = await transporter.sendMail(mailOptions);
-      console.log('Email sent via SMTP:', info && (info.messageId || info.accepted));
-      return res.status(200).json({ success: true, waiverId, info });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("❌ Failed sending email:", data);
+        return res.status(500).json({ success: false, error: "Failed to send email." });
+      }
+
+      console.log("📬 Email sent successfully!");
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      console.error("❌ Error sending email:", error.message);
+      return res.status(500).json({ success: false, error: "Failed to contact mail endpoint" });
+    }
     } catch (error) {
       console.error('Error in /send-waiver-request:', error);
       return res.status(500).json({ success: false, error: error.message || 'Failed to send email.' });
@@ -1888,118 +1759,38 @@ router.post('/send-estimate-email', async (req, res) => {
       </body>
       </html>`;
   
-    // If a Hostinger PHP endpoint is configured, prefer sending via that endpoint
-    if (phpEndpoint && apiKey) {
-      try {
-        const payload = {
-          smtpHost,
-          smtpPort,
-          smtpUser,
-          smtpPass,
-          smtpCrypto,
-          fromEmail: smtpUser || (process.env.FROM_EMAIL || ''),
-          fromName: companyName || 'Your Company',
+    try {
+      const response = await fetch(process.env.EMAIL_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          smtpHost: process.env.SMTP_HOST,
+          smtpPort: process.env.SMTP_PORT,
+          smtpUser: process.env.SMTP_USER,
+          smtpPass: process.env.SMTP_PASS,
+          from: process.env.SMTP_USER,
           to: toStr,
           bcc: bccStr,
-          subject,
-          html,
-          attachments: [
-            {
-              filename,
-              contentBase64: attachmentBase64,
-              contentType: 'application/pdf',
-            },
-          ],
-        };
-  
-        const resp = await axios.post(phpEndpoint, payload, {
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-KEY': apiKey,
-          },
-          timeout: Number(process.env.EMAIL_REQUEST_TIMEOUT_MS || 30000),
-        });
-  
-        if (resp.data && resp.data.success) {
-          return res.status(200).json({ success: true, data: resp.data });
-        }
-  
-        console.error('Hostinger response:', resp.data);
-        return res.status(502).json({
-          success: false,
-          error: resp.data || 'Unknown response from Hostinger mail endpoint',
-        });
-      } catch (err) {
-        console.error('⚠️ Error calling Hostinger sendemail:');
-        console.error('Message:', err.message);
-        if (err.code) console.error('Code:', err.code);
-        if (err.config && err.config.url) console.error('Request URL:', err.config.url);
-        if (err.response) {
-          console.error('Status:', err.response.status);
-          console.error('Status Text:', err.response.statusText);
-          console.error('Headers:', err.response.headers);
-          console.error('Response Data:', err.response.data);
-        } else {
-          console.error('No response received from Hostinger (network or timeout).');
-        }
-  
-        return res.status(500).json({
-          success: false,
-          error: err.message || 'Failed to contact Hostinger mailer',
-          details: {
-            code: err.code || null,
-            status: err.response ? err.response.status : null,
-            data: err.response ? err.response.data : null,
-          },
-        });
+          subject: subject,
+          html: html,
+          attachments: [ { filename, content: attachmentBase64, encoding: 'base64' } ]
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("❌ Failed sending email:", data);
+        return res.status(500).json({ success: false, error: "Failed to send email." });
       }
-    }
-  
-    // Fallback to direct SMTP via nodemailer
-    if (!smtpUser || !smtpPass || !smtpHost) {
-      console.error('Missing SMTP config in environment variables for direct SMTP send.');
-      return res.status(500).json({
-        success: false,
-        error: 'Server SMTP configuration incomplete (SMTP_HOST, SMTP_USER, SMTP_PASS required).',
-      });
-    }
-  
-    try {
-      const secure = smtpCrypto === 'ssl' || Number(smtpPort) === 465;
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort || (secure ? 465 : 587),
-        secure,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
-        },
-      });
-  
-      const mailOptions = {
-        from: process.env.FROM_EMAIL || smtpUser,
-        to: toStr,
-        bcc: bccStr,
-        subject,
-        html,
-        attachments: [
-          {
-            filename,
-            content: Buffer.from(attachmentBase64, 'base64'),
-            contentType: 'application/pdf',
-          },
-        ],
-      };
-  
-      const info = await transporter.sendMail(mailOptions);
-      console.log('Email sent via SMTP:', info && (info.messageId || info.accepted));
-      return res.status(200).json({ success: true, info });
-    } catch (err) {
-      console.error('Error sending email via SMTP:');
-      console.error('Message:', err.message);
-      if (err.code) console.error('Code:', err.code);
-      if (err.response) console.error('Response:', err.response);
-      return res.status(500).json({ success: false, error: err.message || 'Failed to send email via SMTP' });
+
+      console.log("📬 Email sent successfully!");
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      console.error("❌ Error sending email:", error.message);
+      return res.status(500).json({ success: false, error: "Failed to contact mail endpoint" });
     }
   });
 
@@ -2154,104 +1945,38 @@ router.post('/send-estimate-signed-email', async (req, res) => {
     </body>
         </html>`;
   
-    // If you have a Hostinger PHP endpoint + API key configured, use it (keeps your existing PHP mailer flow)
-    if (phpEndpoint && apiKey) {
-      try {
-        const payload = {
-          smtpHost,
-          smtpPort,
-          smtpUser,
-          smtpPass,
-          smtpCrypto,
-          fromEmail,
-          fromName: process.env.FROM_NAME || 'Your Company',
-          to: toStr,
-          subject,
-          html,
-          // No attachments for this route; include estimateId/ownerId in payload so PHP can handle logging if needed
-          meta: { estimateId, ownerId, documentNumber, customerName },
-        };
-  
-        const resp = await axios.post(phpEndpoint, payload, {
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-KEY': apiKey,
-          },
-          timeout: Number(process.env.EMAIL_REQUEST_TIMEOUT_MS || 30000),
-        });
-  
-        if (resp.data && resp.data.success) {
-          return res.status(200).json({ success: true, data: resp.data });
-        }
-  
-        console.error('Hostinger response:', resp.data);
-        return res.status(502).json({
-          success: false,
-          error: resp.data || 'Unknown response from Hostinger mail endpoint',
-        });
-      } catch (err) {
-        console.error('⚠️ Error calling Hostinger sendemail:');
-        console.error('Message:', err.message);
-        if (err.code) console.error('Code:', err.code);
-        if (err.config && err.config.url) console.error('Request URL:', err.config.url);
-        if (err.response) {
-          console.error('Status:', err.response.status);
-          console.error('Status Text:', err.response.statusText);
-          console.error('Headers:', err.response.headers);
-          console.error('Response Data:', err.response.data);
-        } else {
-          console.error('No response received from Hostinger (network or timeout).');
-        }
-  
-        return res.status(500).json({
-          success: false,
-          error: err.message || 'Failed to contact Hostinger mailer',
-          details: {
-            code: err.code || null,
-            status: err.response ? err.response.status : null,
-            data: err.response ? err.response.data : null,
-          },
-        });
-      }
-    }
-  
-    // Otherwise fallback to direct SMTP via nodemailer
-    if (!smtpUser || !smtpPass || !smtpHost) {
-      console.error('Missing SMTP config in environment variables for direct SMTP send.');
-      return res.status(500).json({
-        success: false,
-        error: 'Server SMTP configuration incomplete (SMTP_HOST, SMTP_USER, SMTP_PASS required).',
-      });
-    }
-  
     try {
-      const secure = smtpCrypto === 'ssl' || Number(smtpPort) === 465;
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort || (secure ? 465 : 587),
-        secure,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
+      const response = await fetch(process.env.EMAIL_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
         },
+        body: JSON.stringify({
+          smtpHost: process.env.SMTP_HOST,
+          smtpPort: process.env.SMTP_PORT,
+          smtpUser: process.env.SMTP_USER,
+          smtpPass: process.env.SMTP_PASS,
+          from: process.env.SMTP_USER,
+          to: toStr,
+          bcc: undefined,
+          subject: subject,
+          html: html,
+          attachments: []
+        })
       });
-  
-      const mailOptions = {
-        from: fromEmail,
-        to: toStr,
-        subject,
-        html,
-      };
-  
-      const info = await transporter.sendMail(mailOptions);
-      console.log('Email sent via SMTP:', info && (info.messageId || info.accepted));
-      return res.status(200).json({ success: true, info });
-    } catch (err) {
-      console.error('Error sending email via SMTP:');
-      console.error('Message:', err.message);
-      if (err.code) console.error('Code:', err.code);
-      if (err.response) console.error('Response:', err.response);
-      return res.status(500).json({ success: false, error: err.message || 'Failed to send email via SMTP' });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("❌ Failed sending email:", data);
+        return res.status(500).json({ success: false, error: "Failed to send email." });
+      }
+
+      console.log("📬 Email sent successfully!");
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      console.error("❌ Error sending email:", error.message);
+      return res.status(500).json({ success: false, error: "Failed to contact mail endpoint" });
     }
   });
 

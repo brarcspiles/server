@@ -824,6 +824,9 @@ router.post('/send-invoice-email', async (req, res) => {
     //       pass: 'lpctmxmuoudgnopd'
     //     }
     //   });
+    const currencySign = getCurrencySign(currencyType);
+    const base64Match = typeof pdfAttachment === "string" && pdfAttachment.match(/base64,(.*)$/);
+    const attachmentBase64 = base64Match ? base64Match[1] : pdfAttachment;
     const htmlContent =         `<html>
         <body style="background-color:#c5c1c187; margin-top: 40px; padding:20px 0px;">
              <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#fff; padding: 15px 30px; margin-top: 40px;">
@@ -877,7 +880,7 @@ router.post('/send-invoice-email', async (req, res) => {
           bcc: Array.isArray(bcc) ? bcc.join(', ') : (bcc || ''),
           subject: `Invoice from ${companyName}`,
           html: htmlContent,
-          attachments: [ { filename: `Invoice #${InvoiceNumber}.pdf`, content: pdfAttachment.split(';base64,')[1], encoding: 'base64' } ]
+          attachments: [ { filename: `Invoice #${InvoiceNumber}.pdf`, content: attachmentBase64, encoding: 'base64' } ]
         
 }, {
   headers: { "Content-Type": "application/json" }
@@ -887,8 +890,13 @@ const data = response.data;
       console.log("📬 Email sent successfully!");
       return res.status(200).json({ success: true });
     } catch (error) {
-      console.error("❌ Error sending email:", error.message);
-      return res.status(500).json({ success: false, error: "Failed to contact mail endpoint" });
+      const errData = error.response ? error.response.data : null;
+      console.error("❌ Error sending email:", errData || error.message);
+      return res.status(500).json({ 
+        success: false, 
+        error: (errData && errData.error) ? errData.error : (errData && errData.message) ? errData.message : "Failed to contact mail endpoint",
+        details: errData || error.message
+      });
     }
 });
 
@@ -1265,8 +1273,13 @@ const data = response.data;
       console.log("📬 Email sent successfully!");
       return res.status(200).json({ success: true });
     } catch (error) {
-      console.error("❌ Error sending email:", error.message);
-      return res.status(500).json({ success: false, error: "Failed to contact mail endpoint" });
+      const errData = error.response ? error.response.data : null;
+      console.error("❌ Error sending email:", errData || error.message);
+      return res.status(500).json({ 
+        success: false, 
+        error: (errData && errData.error) ? errData.error : (errData && errData.message) ? errData.message : "Failed to contact mail endpoint",
+        details: errData || error.message
+      });
     }
   });
   
@@ -1636,8 +1649,13 @@ const data = response.data;
       console.log("📬 Email sent successfully!");
       return res.status(200).json({ success: true });
     } catch (error) {
-      console.error("❌ Error sending email:", error.message);
-      return res.status(500).json({ success: false, error: "Failed to contact mail endpoint" });
+      const errData = error.response ? error.response.data : null;
+      console.error("❌ Error sending email:", errData || error.message);
+      return res.status(500).json({ 
+        success: false, 
+        error: (errData && errData.error) ? errData.error : (errData && errData.message) ? errData.message : "Failed to contact mail endpoint",
+        details: errData || error.message
+      });
     }
     } catch (error) {
       console.error('Error in /send-waiver-request:', error);
@@ -1757,8 +1775,13 @@ const data = response.data;
       console.log("📬 Email sent successfully!");
       return res.status(200).json({ success: true });
     } catch (error) {
-      console.error("❌ Error sending email:", error.message);
-      return res.status(500).json({ success: false, error: "Failed to contact mail endpoint" });
+      const errData = error.response ? error.response.data : null;
+      console.error("❌ Error sending email:", errData || error.message);
+      return res.status(500).json({ 
+        success: false, 
+        error: (errData && errData.error) ? errData.error : (errData && errData.message) ? errData.message : "Failed to contact mail endpoint",
+        details: errData || error.message
+      });
     }
   });
 
@@ -1935,8 +1958,13 @@ const data = response.data;
       console.log("📬 Email sent successfully!");
       return res.status(200).json({ success: true });
     } catch (error) {
-      console.error("❌ Error sending email:", error.message);
-      return res.status(500).json({ success: false, error: "Failed to contact mail endpoint" });
+      const errData = error.response ? error.response.data : null;
+      console.error("❌ Error sending email:", errData || error.message);
+      return res.status(500).json({ 
+        success: false, 
+        error: (errData && errData.error) ? errData.error : (errData && errData.message) ? errData.message : "Failed to contact mail endpoint",
+        details: errData || error.message
+      });
     }
   });
 

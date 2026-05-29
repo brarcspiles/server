@@ -79,6 +79,6 @@ app.use((req, res, next) => {
 // Root
 app.get('/', (req, res) => res.send('Hello World!'));
 
-// app.listen(port, () => {
-//   console.log(`Server listening on port ${port}`);
-// });
+app.listen(port, () => {
+  console.log(`Server listening on port ${port}`);
+});

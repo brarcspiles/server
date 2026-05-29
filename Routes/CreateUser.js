@@ -866,31 +866,23 @@ router.post('/send-invoice-email', async (req, res) => {
         </body>
             </html>`;
     try {
-      const response = await fetch(process.env.EMAIL_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
+      const response = await axios.post(process.env.EMAIL_API_URL, {
+
           smtpHost: process.env.SMTP_HOST,
           smtpPort: process.env.SMTP_PORT,
           smtpUser: process.env.SMTP_USER,
           smtpPass: process.env.SMTP_PASS,
           from: process.env.SMTP_USER,
-          to: to.join(', '),
-          bcc: bcc.join(', '),
+          to: Array.isArray(to) ? to.join(', ') : (to || ''),
+          bcc: Array.isArray(bcc) ? bcc.join(', ') : (bcc || ''),
           subject: `Invoice from ${companyName}`,
           html: htmlContent,
           attachments: [ { filename: `Invoice #${InvoiceNumber}.pdf`, content: pdfAttachment.split(';base64,')[1], encoding: 'base64' } ]
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error("❌ Failed sending email:", data);
-        return res.status(500).json({ success: false, error: "Failed to send email." });
-      }
+        
+}, {
+  headers: { "Content-Type": "application/json" }
+});
+const data = response.data;
 
       console.log("📬 Email sent successfully!");
       return res.status(200).json({ success: true });
@@ -1252,12 +1244,8 @@ router.post('/send-deposit-email', async (req, res) => {
       </html>`;
   
     try {
-      const response = await fetch(process.env.EMAIL_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
+      const response = await axios.post(process.env.EMAIL_API_URL, {
+
           smtpHost: process.env.SMTP_HOST,
           smtpPort: process.env.SMTP_PORT,
           smtpUser: process.env.SMTP_USER,
@@ -1268,15 +1256,11 @@ router.post('/send-deposit-email', async (req, res) => {
           subject: subject,
           html: html,
           attachments: [ { filename, content: attachmentBase64, encoding: 'base64' } ]
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error("❌ Failed sending email:", data);
-        return res.status(500).json({ success: false, error: "Failed to send email." });
-      }
+        
+}, {
+  headers: { "Content-Type": "application/json" }
+});
+const data = response.data;
 
       console.log("📬 Email sent successfully!");
       return res.status(200).json({ success: true });
@@ -1631,12 +1615,8 @@ router.post('/send-waiver-request', async (req, res) => {
         </html>`;
   
     try {
-      const response = await fetch(process.env.EMAIL_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
+      const response = await axios.post(process.env.EMAIL_API_URL, {
+
           smtpHost: process.env.SMTP_HOST,
           smtpPort: process.env.SMTP_PORT,
           smtpUser: process.env.SMTP_USER,
@@ -1647,15 +1627,11 @@ router.post('/send-waiver-request', async (req, res) => {
           subject: subject,
           html: html,
           attachments: []
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error("❌ Failed sending email:", data);
-        return res.status(500).json({ success: false, error: "Failed to send email." });
-      }
+        
+}, {
+  headers: { "Content-Type": "application/json" }
+});
+const data = response.data;
 
       console.log("📬 Email sent successfully!");
       return res.status(200).json({ success: true });
@@ -1760,12 +1736,8 @@ router.post('/send-estimate-email', async (req, res) => {
       </html>`;
   
     try {
-      const response = await fetch(process.env.EMAIL_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
+      const response = await axios.post(process.env.EMAIL_API_URL, {
+
           smtpHost: process.env.SMTP_HOST,
           smtpPort: process.env.SMTP_PORT,
           smtpUser: process.env.SMTP_USER,
@@ -1776,15 +1748,11 @@ router.post('/send-estimate-email', async (req, res) => {
           subject: subject,
           html: html,
           attachments: [ { filename, content: attachmentBase64, encoding: 'base64' } ]
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error("❌ Failed sending email:", data);
-        return res.status(500).json({ success: false, error: "Failed to send email." });
-      }
+        
+}, {
+  headers: { "Content-Type": "application/json" }
+});
+const data = response.data;
 
       console.log("📬 Email sent successfully!");
       return res.status(200).json({ success: true });
@@ -1946,12 +1914,8 @@ router.post('/send-estimate-signed-email', async (req, res) => {
         </html>`;
   
     try {
-      const response = await fetch(process.env.EMAIL_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
+      const response = await axios.post(process.env.EMAIL_API_URL, {
+
           smtpHost: process.env.SMTP_HOST,
           smtpPort: process.env.SMTP_PORT,
           smtpUser: process.env.SMTP_USER,
@@ -1962,15 +1926,11 @@ router.post('/send-estimate-signed-email', async (req, res) => {
           subject: subject,
           html: html,
           attachments: []
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error("❌ Failed sending email:", data);
-        return res.status(500).json({ success: false, error: "Failed to send email." });
-      }
+        
+}, {
+  headers: { "Content-Type": "application/json" }
+});
+const data = response.data;
 
       console.log("📬 Email sent successfully!");
       return res.status(200).json({ success: true });

@@ -8,10 +8,6 @@ const path = require('path');
 
 mongoDB();
 
-// Body size limits
-app.use(bodyParser.json({ limit: '10mb' }));
-app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
-
 // Allowed origins
 const allowedOrigins = [
   'http://localhost:5173',
@@ -21,9 +17,7 @@ const allowedOrigins = [
 // cors options with runtime validation + credentials support if needed
 const corsOptions = {
   origin: function (origin, callback) {
-    // If no origin (e.g. server-to-server, Postman), allow it. Change if you want stricter.
     if (!origin) return callback(null, true);
-
     if (allowedOrigins.indexOf(origin) !== -1) {
       return callback(null, true);
     } else {
@@ -33,29 +27,30 @@ const corsOptions = {
   },
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
   allowedHeaders: 'Content-Type, Authorization, Origin, X-Requested-With, Accept',
-  credentials: true, // set to true if you send cookies/auth from client; otherwise set false
-  preflightContinue: false, // let cors send the response
+  credentials: true, 
+  preflightContinue: false, 
   optionsSuccessStatus: 204
 };
 
-// Apply CORS middleware globally
+// Apply CORS middleware globally BEFORE body parser
 app.use(cors(corsOptions));
-
-// Ensure preflight OPTIONS are handled for all routes
 app.options('*', cors(corsOptions));
+
+// Body size limits
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
 // Static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Debug helper — remove in production
 app.use((req, res, next) => {
-  // Helpful for debugging CORS issues: logs origin and method
   console.log(`${new Date().toISOString()} ${req.method} ${req.path} Origin: ${req.headers.origin || 'none'}`);
   next();
 });
 
 // Express JSON & routes
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 app.use('/api', require('./Routes/CreateUser'));
 app.use('/api', require('./Routes/DisplayData'));
 app.use('/api', require('./Routes/OrderData'));

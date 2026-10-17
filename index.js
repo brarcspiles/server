@@ -51,6 +51,15 @@ app.use((req, res, next) => {
 
 // Express JSON & routes
 app.use(express.json({ limit: '50mb' }));
+
+// Route alias: Map root /send-invoice and /send-invoice-email to /api
+app.use((req, res, next) => {
+  if (req.method === 'POST' && (req.path === '/send-invoice' || req.path === '/send-invoice-email')) {
+    req.url = '/api' + req.url;
+  }
+  next();
+});
+
 app.use('/api', require('./Routes/CreateUser'));
 app.use('/api', require('./Routes/DisplayData'));
 app.use('/api', require('./Routes/OrderData'));

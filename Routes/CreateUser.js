@@ -877,8 +877,9 @@ router.post(['/send-invoice', '/send-invoice-email'], async (req, res) => {
         const issueDate = singleLine(customdate || moment().format('MMMM D, YYYY'));
         const dueDateText = singleLine(duedate || 'Due on receipt');
 
-        const attachmentFilename = `Invoice-${safeFileNum}.pdf`;
-        const subject = `Invoice #${displayNumber} from ${displayCompany}`;
+        const safeCompanyPrefix = displayCompany.replace(/[^a-zA-Z0-9]/g, '_');
+        const attachmentFilename = `${safeCompanyPrefix}_Invoice_${safeFileNum}.pdf`;
+        const subject = req.body.subject || `${displayCompany} - Invoice #${displayNumber}`;
 
         const portalBase = (process.env.INVOICE_PORTAL_URL || 'https://cspiles.vercel.app').replace(/\/$/, '');
         const invoiceUrl = invoiceId

@@ -800,43 +800,6 @@ router.get('/customDateReceivedAmount/:userid', async (req, res) => {
         res.status(500).json({ message: 'Server error' });
     }
 });
-
-// ---------- Helpers (route toh upar rakho) ----------
-const escapeHtml = (v = '') =>
-    String(v)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-
-const singleLine = (v = '') => String(v).replace(/[\r\n"<>]+/g, ' ').trim();
-const isValidEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
-const parseEmails = (v) =>
-    (Array.isArray(v) ? v : String(v || '').split(/[,;]/))
-        .map((s) => s.trim())
-        .filter(Boolean);
-
-// Transporter ik vaari bana ke reuse karo (pooling = faster + better reputation)
-let cachedTransporter = null;
-const getTransporter = () => {
-    if (cachedTransporter) return cachedTransporter;
-    const port = Number(process.env.SMTP_PORT) || 587;
-    cachedTransporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port,
-        secure: port === 465,
-        requireTLS: port !== 465,
-        pool: true,
-        maxConnections: 3,
-        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-        connectionTimeout: 15000,
-        socketTimeout: 30000
-        // rejectUnauthorized: false HATA DITTA - eh security + trust issue hai
-    });
-    return cachedTransporter;
-};
-
 // ======================= Helpers (route toh upar rakho) =======================
 const escapeHtml = (v = '') =>
     String(v)

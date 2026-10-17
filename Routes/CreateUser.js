@@ -837,6 +837,46 @@ const getTransporter = () => {
     return cachedTransporter;
 };
 
+// ======================= Helpers (route toh upar rakho) =======================
+const escapeHtml = (v = '') =>
+    String(v)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+const singleLine = (v = '') => String(v).replace(/[\r\n"<>]+/g, ' ').trim();
+const isValidEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+const parseEmails = (v) =>
+    (Array.isArray(v) ? v : String(v || '').split(/[,;]/))
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+// ALL CAPS name nu Title Case banao (spam signal ghatt karda hai)
+const toTitleCase = (s) =>
+    s === s.toUpperCase() ? s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()) : s;
+
+// Transporter ik vaari bana ke reuse karo
+let cachedTransporter = null;
+const getTransporter = () => {
+    if (cachedTransporter) return cachedTransporter;
+    const port = Number(process.env.SMTP_PORT) || 587;
+    cachedTransporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port,
+        secure: port === 465,
+        requireTLS: port !== 465,
+        pool: true,
+        maxConnections: 3,
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+        connectionTimeout: 15000,
+        socketTimeout: 30000
+    });
+    return cachedTransporter;
+};
+
+// ======================= Route =======================
 router.post(['/send-invoice', '/send-invoice-email'], async (req, res) => {
     try {
         const {
@@ -844,6 +884,7 @@ router.post(['/send-invoice', '/send-invoice-email'], async (req, res) => {
             InvoiceNumber, amountdue, currencyType, amountdue1, invoiceId, replyEmail
         } = req.body;
 
+        // ---------- Recipients ----------
         const toList = parseEmails(to);
         if (!toList.length) {
             return res.status(400).json({ success: false, error: 'Recipient email (to) is required.' });
@@ -854,8 +895,14 @@ router.post(['/send-invoice', '/send-invoice-email'], async (req, res) => {
         const bccList = parseEmails(bcc).filter(isValidEmail);
 
         // ---------- Clean values ----------
-        const safeInvoiceNumber = singleLine(String(InvoiceNumber || 'INV').replace(/[#]/g, ''));
         const cleanCompanyName = singleLine(companyName || 'Canadian Screw Piles');
+        const displayCompany = toTitleCase(cleanCompanyName);
+
+        const rawInvoiceNumber = singleLine(String(InvoiceNumber || 'INV').replace(/[#]/g, ''));
+        // "Invoice-2216" -> "2216"
+        const displayNumber = rawInvoiceNumber.replace(/^invoice[-_\s]*/i, '') || rawInvoiceNumber;
+        const safeFileNum = displayNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
+
         const currencySign = getCurrencySign(currencyType) || '$';
         const rawAmount =
             amountdue1 !== undefined && amountdue1 !== null && amountdue1 !== ''
@@ -867,9 +914,8 @@ router.post(['/send-invoice', '/send-invoice-email'], async (req, res) => {
         const issueDate = singleLine(customdate || moment().format('MMMM D, YYYY'));
         const dueDateText = singleLine(duedate || 'Due on receipt');
 
-        const safeFileNum = safeInvoiceNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
         const attachmentFilename = `Invoice-${safeFileNum}.pdf`;
-        const subject = `Invoice #${safeInvoiceNumber} from ${cleanCompanyName}`;
+        const subject = `Invoice #${displayNumber} from ${displayCompany}`;
 
         const portalBase = (process.env.INVOICE_PORTAL_URL || 'https://cspiles.vercel.app').replace(/\/$/, '');
         const invoiceUrl = invoiceId
@@ -893,25 +939,28 @@ router.post(['/send-invoice', '/send-invoice-email'], async (req, res) => {
         const plainTextContent = [
             'Hello,',
             '',
-            `Please find attached invoice #${safeInvoiceNumber} from ${cleanCompanyName}.`,
+            `Please find your invoice #${displayNumber} from ${displayCompany} below.`,
             '',
-            `Invoice number: #${safeInvoiceNumber}`,
+            `Invoice number: #${displayNumber}`,
             `Issue date: ${issueDate}`,
             `Due date: ${dueDateText}`,
             `Amount due: ${formattedAmount}`,
-            noteText ? `\nNote from ${cleanCompanyName}:\n${noteText}` : '',
+            noteText ? `\nNote from ${displayCompany}:\n${noteText}` : '',
             invoiceUrl ? `\nYou can also view and sign the invoice online:\n${invoiceUrl}` : '',
             attachmentBuffer ? `\nA PDF copy is attached (${attachmentFilename}).` : '',
             '',
             'If you have any questions, just reply to this email.',
             '',
             'Thank you,',
-            cleanCompanyName,
-            companyAddress ? companyAddress : ''
-        ].filter((l, i, arr) => !(l === '' && arr[i - 1] === '')).join('\n');
+            displayCompany,
+            companyAddress || ''
+        ]
+            .filter((l, i, arr) => !(l === '' && arr[i - 1] === ''))
+            .join('\n');
 
         // ---------- HTML version (simple, table based, no images) ----------
         const e = escapeHtml;
+
         const noteSection = noteText
             ? `<tr><td style="padding:0 32px 20px 32px;">
                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
@@ -950,7 +999,7 @@ router.post(['/send-invoice', '/send-invoice-email'], async (req, res) => {
 </head>
 <body style="margin:0; padding:0; background-color:#f4f6f8; font-family:Arial, Helvetica, sans-serif;">
   <div style="display:none; max-height:0; overflow:hidden; opacity:0;">
-    Invoice #${e(safeInvoiceNumber)} from ${e(cleanCompanyName)}. Amount due ${e(formattedAmount)}.
+    Invoice #${e(displayNumber)} from ${e(displayCompany)}. Amount due ${e(formattedAmount)}.
   </div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f6f8;">
     <tr>
@@ -959,8 +1008,8 @@ router.post(['/send-invoice', '/send-invoice-email'], async (req, res) => {
 
           <tr>
             <td style="padding:28px 32px 16px 32px;">
-              <div style="font-size:20px; font-weight:700; color:#0f172a;">${e(cleanCompanyName)}</div>
-              <div style="font-size:14px; color:#64748b; margin-top:4px;">Invoice #${e(safeInvoiceNumber)}</div>
+              <div style="font-size:20px; font-weight:700; color:#0f172a;">${e(displayCompany)}</div>
+              <div style="font-size:14px; color:#64748b; margin-top:4px;">Invoice #${e(displayNumber)}</div>
             </td>
           </tr>
 
@@ -986,7 +1035,7 @@ router.post(['/send-invoice', '/send-invoice-email'], async (req, res) => {
           <tr>
             <td style="padding:0 32px 16px 32px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                ${row('Invoice number', '#' + e(safeInvoiceNumber))}
+                ${row('Invoice number', '#' + e(displayNumber))}
                 ${row('Issue date', e(issueDate))}
                 ${row('Due date', e(dueDateText))}
               </table>
@@ -1000,7 +1049,7 @@ router.post(['/send-invoice', '/send-invoice-email'], async (req, res) => {
           <tr>
             <td style="padding:18px 32px 26px 32px; border-top:1px solid #eef2f7; font-size:12px; line-height:1.6; color:#94a3b8; text-align:center;">
               Questions about this invoice? Just reply to this email.<br />
-              &copy; ${new Date().getFullYear()} ${e(cleanCompanyName)}${companyAddress ? '<br />' + e(companyAddress) : ''}
+              &copy; ${new Date().getFullYear()} ${e(displayCompany)}${companyAddress ? '<br />' + e(companyAddress) : ''}
             </td>
           </tr>
 
@@ -1012,18 +1061,17 @@ router.post(['/send-invoice', '/send-invoice-email'], async (req, res) => {
 </html>`;
 
         // ---------- Headers ----------
-        const fromHeader = `"${cleanCompanyName}" <${process.env.SMTP_USER}>`;
+        const fromHeader = `"${displayCompany}" <${process.env.SMTP_USER}>`;
         const replyToHeader =
             replyEmail && isValidEmail(String(replyEmail).trim())
-                ? `"${cleanCompanyName}" <${String(replyEmail).trim()}>`
+                ? `"${displayCompany}" <${String(replyEmail).trim()}>`
                 : fromHeader;
 
-        // X-Priority / Importance / X-Mailer hata ditte (spam filters nu ehna te shak hunda)
         const emailHeaders = { 'X-Entity-Ref-ID': `inv-${safeFileNum}-${Date.now()}` };
 
         let lastError = null;
 
-        // ---------- Strategy A: Direct SMTP ----------
+        // ================= Strategy A: Direct SMTP (preferred) =================
         if (process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_HOST) {
             try {
                 const info = await getTransporter().sendMail({
@@ -1039,16 +1087,17 @@ router.post(['/send-invoice', '/send-invoice-email'], async (req, res) => {
                         : [],
                     headers: emailHeaders
                 });
-                console.log('Invoice email sent via SMTP:', info.messageId);
+                console.log('[invoice-email] sent via DIRECT SMTP:', info.messageId, '| attachment:', !!attachmentBuffer);
                 return res.status(200).json({ success: true, messageId: info.messageId, method: 'direct_smtp' });
             } catch (smtpErr) {
-                console.warn('Direct SMTP failed, falling back to EMAIL_API_URL:', smtpErr.message);
+                console.warn('[invoice-email] Direct SMTP failed:', smtpErr.message);
                 lastError = smtpErr;
             }
         }
 
-        // ---------- Strategy B: EMAIL_API_URL fallback ----------
-        if (process.env.EMAIL_API_URL) {
+        // ================= Strategy B: EMAIL_API_URL fallback =================
+        // Testing layi Render env ch FORCE_DIRECT_SMTP=true set karo, fallback band ho jayega
+        if (process.env.FORCE_DIRECT_SMTP !== 'true' && process.env.EMAIL_API_URL) {
             try {
                 const response = await axios.post(
                     process.env.EMAIL_API_URL,
@@ -1076,11 +1125,11 @@ router.post(['/send-invoice', '/send-invoice-email'], async (req, res) => {
                     },
                     { headers: { 'Content-Type': 'application/json' }, timeout: 45000 }
                 );
-                console.log('Invoice email sent via EMAIL_API_URL');
+                console.log('[invoice-email] sent via EMAIL_API_URL (check: PDF attach hoyi ya nahi)');
                 return res.status(200).json({ success: true, method: 'email_api_url', data: response.data });
             } catch (apiErr) {
                 const errData = apiErr.response ? apiErr.response.data : null;
-                console.error('EMAIL_API_URL error:', errData || apiErr.message);
+                console.error('[invoice-email] EMAIL_API_URL error:', errData || apiErr.message);
                 lastError = errData || apiErr;
             }
         }
@@ -1090,7 +1139,7 @@ router.post(['/send-invoice', '/send-invoice-email'], async (req, res) => {
             : 'No available mail transport configured.';
         return res.status(500).json({ success: false, error: 'Failed to send invoice email', details: errorMsg });
     } catch (error) {
-        console.error('Unexpected error in send-invoice:', error);
+        console.error('[invoice-email] Unexpected error:', error);
         return res.status(500).json({ success: false, error: error.message || 'Internal server error' });
     }
 });

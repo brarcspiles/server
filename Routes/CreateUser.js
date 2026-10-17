@@ -839,179 +839,186 @@ const getTransporter = () => {
     return cachedTransporter;
 };
 
-// ======================= Route =======================
+
+
 router.post(['/send-invoice', '/send-invoice-email'], async (req, res) => {
     try {
         const {
-            to, bcc, content, companyName, pdfAttachment, customdate, duedate,
-            InvoiceNumber, amountdue, currencyType, amountdue1, invoiceId, replyEmail
+            to,
+            bcc,
+            content,
+            companyName,
+            pdfAttachment,
+            customdate,
+            duedate,
+            InvoiceNumber,
+            amountdue,
+            currencyType,
+            amountdue1,
+            invoiceId,
+            replyEmail
         } = req.body;
 
-        // ---------- Recipients ----------
-        const toList = parseEmails(to);
-        if (!toList.length) {
-            return res.status(400).json({ success: false, error: 'Recipient email (to) is required.' });
+        if (!to) {
+            return res.status(400).json({
+                success: false,
+                error: 'Recipient email (to) is required.'
+            });
         }
-        if (!toList.every(isValidEmail)) {
-            return res.status(400).json({ success: false, error: 'One or more recipient emails are invalid.' });
-        }
-        const bccList = parseEmails(bcc).filter(isValidEmail);
 
-        // ---------- Clean values ----------
-        const cleanCompanyName = singleLine(companyName || 'Canadian Screw Piles');
-        const displayCompany = toTitleCase(cleanCompanyName);
-
-        const rawInvoiceNumber = singleLine(String(InvoiceNumber || 'INV').replace(/[#]/g, ''));
-        // "Invoice-2216" -> "2216"
-        const displayNumber = rawInvoiceNumber.replace(/^invoice[-_\s]*/i, '') || rawInvoiceNumber;
-        const safeFileNum = displayNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
-
+        const safeInvoiceNumber = String(InvoiceNumber || 'INV').replace(/[#]/g, '').trim();
+        const cleanCompanyName = (companyName || 'Canadian Screw Piles').replace(/["\r\n]/g, '').trim();
         const currencySign = getCurrencySign(currencyType) || '$';
-        const rawAmount =
-            amountdue1 !== undefined && amountdue1 !== null && amountdue1 !== ''
-                ? amountdue1
-                : amountdue !== undefined && amountdue !== null && amountdue !== ''
-                ? amountdue
-                : '0.00';
-        const formattedAmount = `${currencySign}${rawAmount}`;
-        const issueDate = singleLine(customdate || moment().format('MMMM D, YYYY'));
-        const dueDateText = singleLine(duedate || 'Due on receipt');
+        const displayAmount = (amountdue1 !== undefined && amountdue1 !== null && amountdue1 !== '') 
+            ? amountdue1 
+            : (amountdue !== undefined && amountdue !== null && amountdue !== '' ? amountdue : '0.00');
+        const formattedAmount = `${currencySign}${displayAmount}`;
+        const issueDate = customdate || moment().format('MMMM D, YYYY');
+        const dueDateText = duedate || 'Due on Receipt';
 
-        const safeCompanyPrefix = displayCompany.replace(/[^a-zA-Z0-9]/g, '_');
-        const attachmentFilename = `${safeCompanyPrefix}_Invoice_${safeFileNum}.pdf`;
-        const subject = req.body.subject || `${displayCompany} - Invoice #${displayNumber}`;
-
-        const portalBase = (process.env.INVOICE_PORTAL_URL || 'https://cspiles.vercel.app').replace(/\/$/, '');
-        const invoiceUrl = invoiceId
-            ? `${portalBase}/customersigninvoice?invoiceId=${encodeURIComponent(invoiceId)}`
-            : null;
-        const companyAddress = singleLine(process.env.COMPANY_ADDRESS || '');
-        const noteText = content && String(content).trim() ? String(content).trim() : '';
-
-        // ---------- PDF attachment (validate) ----------
-        let attachmentBuffer = null;
-        if (typeof pdfAttachment === 'string' && pdfAttachment.trim()) {
-            const m = pdfAttachment.match(/base64,(.*)$/s);
-            const b64 = (m ? m[1] : pdfAttachment).replace(/\s/g, '');
-            attachmentBuffer = Buffer.from(b64, 'base64');
-            if (attachmentBuffer.slice(0, 4).toString() !== '%PDF') {
-                return res.status(400).json({ success: false, error: 'Attachment is not a valid PDF.' });
-            }
+        // Extract clean Base64 string for PDF
+        let attachmentBase64 = '';
+        if (typeof pdfAttachment === 'string') {
+            const base64Match = pdfAttachment.match(/base64,(.*)$/);
+            attachmentBase64 = base64Match ? base64Match[1].trim() : pdfAttachment.trim();
         }
 
-        // ---------- Plain text version ----------
-        const plainTextContent = [
-            'Hello,',
-            '',
-            `Please find your invoice #${displayNumber} from ${displayCompany} below.`,
-            '',
-            `Invoice number: #${displayNumber}`,
-            `Issue date: ${issueDate}`,
-            `Due date: ${dueDateText}`,
-            `Amount due: ${formattedAmount}`,
-            noteText ? `\nNote from ${displayCompany}:\n${noteText}` : '',
-            invoiceUrl ? `\nYou can also view and sign the invoice online:\n${invoiceUrl}` : '',
-            attachmentBuffer ? `\nA PDF copy is attached (${attachmentFilename}).` : '',
-            '',
-            'If you have any questions, just reply to this email.',
-            '',
-            'Thank you,',
-            displayCompany,
-            companyAddress || ''
-        ]
-            .filter((l, i, arr) => !(l === '' && arr[i - 1] === ''))
-            .join('\n');
+        const safeFileNum = safeInvoiceNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
+        const attachmentFilename = `Invoice-${safeFileNum}.pdf`;
+        const subject = `Invoice #${safeInvoiceNumber} from ${cleanCompanyName}`;
 
-        // ---------- HTML version (simple, table based, no images) ----------
-        const e = escapeHtml;
+        // 1. Plain Text Alternative (CRITICAL FOR INBOX DELIVERABILITY - Prevents MIME_HTML_ONLY spam penalty)
+        const plainTextContent = `Hello,
 
-        const noteSection = noteText
-            ? `<tr><td style="padding:0 32px 20px 32px;">
-                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                   <tr><td style="border-left:3px solid #2563eb; padding:8px 14px; font-size:14px; line-height:1.6; color:#334155;">
-                     ${e(noteText).replace(/\r?\n/g, '<br />')}
-                   </td></tr>
-                 </table>
-               </td></tr>`
-            : '';
+Please find attached Invoice #${safeInvoiceNumber} from ${cleanCompanyName}.
 
-        const buttonSection = invoiceUrl
-            ? `<tr><td style="padding:4px 28px 16px 28px; font-size:14px; color:#4b5563;">
-                 To review or sign this document online: <a href="${e(invoiceUrl)}" style="color:#2563eb; text-decoration:underline;">Click here</a>
-               </td></tr>`
-            : '';
+============================================================
+INVOICE SUMMARY
+============================================================
+Invoice Number : #${safeInvoiceNumber}
+Issue Date     : ${issueDate}
+Due Date       : ${dueDateText}
+Amount Due     : ${formattedAmount}
+============================================================
+${content && content.trim() ? `\nNote from ${cleanCompanyName}:\n${content.trim()}\n` : ''}
+${invoiceId ? `\nView & Sign Invoice Online:\nhttps://cspiles.vercel.app/customersigninvoice?invoiceId=${invoiceId}\n` : ''}
+Your official invoice is attached to this email as a PDF document (${attachmentFilename}).
 
-        const attachNote = attachmentBuffer
-            ? `<tr><td style="padding:0 32px 20px 32px; font-size:13px; line-height:1.5; color:#64748b;">
-                 A PDF copy of this invoice is attached (${e(attachmentFilename)}).
-               </td></tr>`
-            : '';
+If you have any questions or require further assistance, please reply directly to this email.
 
-        const row = (label, value) => `
-            <tr>
-              <td style="padding:10px 0; border-bottom:1px solid #eef2f7; color:#64748b; font-size:14px;">${label}</td>
-              <td align="right" style="padding:10px 0; border-bottom:1px solid #eef2f7; color:#0f172a; font-size:14px; font-weight:600;">${value}</td>
-            </tr>`;
+Thank you for your business!
 
-        const htmlContent = `<!DOCTYPE html>
-<html lang="en">
+Best regards,
+${cleanCompanyName}
+`;
+
+        // 2. High Deliverability HTML Template (No empty links, valid 6-char hex colors, email-safe tables)
+        const onlineInvoiceButton = invoiceId ? `
+          <div style="text-align: center; margin: 28px 0 20px 0;">
+            <a href="https://cspiles.vercel.app/customersigninvoice?invoiceId=${invoiceId}" 
+               target="_blank" 
+               rel="noopener noreferrer" 
+               style="background-color: #2563eb; color: #ffffff; padding: 13px 30px; font-size: 15px; font-weight: 600; text-decoration: none; border-radius: 6px; display: inline-block;">
+              View &amp; Sign Invoice
+            </a>
+          </div>
+        ` : '';
+
+        const noteSection = content && content.trim() ? `
+          <div style="background-color: #f8fafc; border-left: 4px solid #2563eb; padding: 14px 18px; margin: 20px 0; border-radius: 0 6px 6px 0;">
+            <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #334155;">${content.trim()}</p>
+          </div>
+        ` : '';
+
+        const htmlContent = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="color-scheme" content="light" />
-  <title>${e(subject)}</title>
+  <title>${subject}</title>
 </head>
-<body style="margin:0; padding:0; background-color:#ffffff; font-family:Arial, Helvetica, sans-serif; color:#333333;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;">
+<body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; padding: 30px 10px;">
     <tr>
-      <td align="center" style="padding:20px 10px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:580px; background-color:#ffffff; border:1px solid #e5e7eb; border-radius:6px;">
-
+      <td align="center">
+        <!-- Main Card -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+          
+          <!-- Header -->
           <tr>
-            <td style="padding:24px 28px 12px 28px;">
-              <div style="font-size:20px; font-weight:bold; color:#111827;">${e(displayCompany)}</div>
-              <div style="font-size:14px; color:#4b5563; margin-top:2px;">Invoice #${e(displayNumber)}</div>
-            </td>
-          </tr>
-
-          <tr>
-            <td style="padding:0 28px 14px 28px; font-size:15px; line-height:1.5; color:#374151;">
-              Hello,<br /><br />
-              Please find attached your invoice <strong>#${e(displayNumber)}</strong> from ${e(displayCompany)}.
-            </td>
-          </tr>
-
-          <tr>
-            <td style="padding:0 28px 16px 28px;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f9fafb; border:1px solid #e5e7eb; border-radius:6px;">
+            <td style="padding: 30px 36px 20px 36px; border-bottom: 1px solid #f1f5f9;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%">
                 <tr>
-                  <td align="center" style="padding:16px;">
-                    <div style="font-size:12px; text-transform:uppercase; color:#6b7280; font-weight:600; letter-spacing:0.5px;">Amount Due</div>
-                    <div style="font-size:30px; font-weight:bold; color:#111827; padding-top:4px;">${e(formattedAmount)}</div>
+                  <td>
+                    <h2 style="margin: 0; font-size: 20px; font-weight: 700; color: #0f172a;">${cleanCompanyName}</h2>
+                    <p style="margin: 4px 0 0 0; font-size: 13px; color: #64748b;">Billing Department</p>
+                  </td>
+                  <td align="right">
+                    <span style="display: inline-block; background-color: #eff6ff; color: #1d4ed8; padding: 6px 14px; font-size: 13px; font-weight: 600; border-radius: 9999px; border: 1px solid #dbeafe;">
+                      INVOICE #${safeInvoiceNumber}
+                    </span>
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
 
+          <!-- Amount Box -->
           <tr>
-            <td style="padding:0 28px 14px 28px;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                ${row('Invoice number', '#' + e(displayNumber))}
-                ${row('Issue date', e(issueDate))}
-                ${row('Due date', e(dueDateText))}
-              </table>
+            <td style="padding: 24px 36px 10px 36px;">
+              <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 22px; text-align: center;">
+                <p style="margin: 0 0 6px 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; font-weight: 600;">Amount Due</p>
+                <h1 style="margin: 0; font-size: 36px; font-weight: 800; color: #0f172a; line-height: 1.1;">${formattedAmount}</h1>
+                <p style="margin: 8px 0 0 0; font-size: 14px; color: #dc2626; font-weight: 500;">Due: ${dueDateText}</p>
+              </div>
             </td>
           </tr>
 
-          ${noteSection}
-          ${buttonSection}
-          ${attachNote}
-
+          <!-- Invoice Details Table -->
           <tr>
-            <td style="padding:16px 28px 24px 28px; border-top:1px solid #f3f4f6; font-size:13px; line-height:1.5; color:#6b7280; text-align:center;">
-              If you have any questions, please reply directly to this email.<br />
-              &copy; ${new Date().getFullYear()} ${e(displayCompany)}${companyAddress ? ' &bull; ' + e(companyAddress) : ''}
+            <td style="padding: 14px 36px;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size: 14px; color: #334155; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; color: #64748b;">Invoice Number</td>
+                  <td align="right" style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-weight: 600; color: #0f172a;">#${safeInvoiceNumber}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; color: #64748b;">Issue Date</td>
+                  <td align="right" style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-weight: 600; color: #0f172a;">${issueDate}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; color: #64748b;">Due Date</td>
+                  <td align="right" style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-weight: 600; color: #0f172a;">${dueDateText}</td>
+                </tr>
+              </table>
+
+              ${noteSection}
+
+              ${onlineInvoiceButton}
+
+              <!-- PDF Attachment Notice -->
+              <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px 18px; margin: 22px 0 10px 0;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td width="26" valign="top" style="font-size: 18px; line-height: 1;">&#128206;</td>
+                    <td style="font-size: 13px; color: #475569; line-height: 1.5;">
+                      <strong>PDF Invoice Attached:</strong> An official, printable PDF copy (<span style="color: #0f172a; font-family: monospace;">${attachmentFilename}</span>) is attached to this email.
+                    </td>
+                  </tr>
+                </table>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 22px 36px 30px 36px; border-top: 1px solid #f1f5f9; text-align: center;">
+              <p style="margin: 0 0 6px 0; font-size: 13px; color: #64748b;">
+                Thank you for your business! If you have questions regarding this invoice, simply reply directly to this email.
+              </p>
+              <p style="margin: 0; font-size: 12px; color: #94a3b8;">
+                &copy; ${new Date().getFullYear()} ${cleanCompanyName}. All rights reserved.
+              </p>
             </td>
           </tr>
 
@@ -1022,659 +1029,387 @@ router.post(['/send-invoice', '/send-invoice-email'], async (req, res) => {
 </body>
 </html>`;
 
-        // ---------- Headers ----------
-        const fromHeader = `"${displayCompany}" <${process.env.SMTP_USER}>`;
-        const replyToHeader =
-            replyEmail && isValidEmail(String(replyEmail).trim())
-                ? `"${displayCompany}" <${String(replyEmail).trim()}>`
-                : fromHeader;
+        const toStr = Array.isArray(to) ? to.join(', ') : String(to || '');
+        const bccStr = Array.isArray(bcc) ? bcc.join(', ') : (bcc ? String(bcc) : undefined);
+        const fromHeader = `"${cleanCompanyName}" <${process.env.SMTP_USER}>`;
+        const replyToHeader = replyEmail ? `"${cleanCompanyName}" <${replyEmail}>` : fromHeader;
 
-        const emailHeaders = { 'X-Entity-Ref-ID': `inv-${safeFileNum}-${Date.now()}` };
+        const emailHeaders = {
+            'X-Mailer': 'CSPiles Invoicing System',
+            'X-Priority': '3',
+            'Importance': 'Normal',
+            'X-Entity-Ref-ID': `inv-${safeFileNum}-${Date.now()}`
+        };
 
+        const attachmentsPayload = attachmentBase64 ? [
+            {
+                filename: attachmentFilename,
+                content: attachmentBase64,
+                encoding: 'base64',
+                contentType: 'application/pdf',
+                contentDisposition: 'attachment'
+            }
+        ] : [];
+
+        let sentSuccess = false;
         let lastError = null;
 
-        // ================= Strategy A: Direct SMTP (preferred) =================
+        // Strategy A: Direct Nodemailer SMTP (Fastest, full RFC MIME structure, direct attachment Buffer)
         if (process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_HOST) {
             try {
-                const info = await getTransporter().sendMail({
+                const isSecure = Number(process.env.SMTP_PORT) === 465;
+                const transporter = nodemailer.createTransport({
+                    host: process.env.SMTP_HOST,
+                    port: Number(process.env.SMTP_PORT) || 587,
+                    secure: isSecure,
+                    auth: {
+                        user: process.env.SMTP_USER,
+                        pass: process.env.SMTP_PASS
+                    },
+                    tls: {
+                        rejectUnauthorized: false
+                    }
+                });
+
+                const mailOptions = {
                     from: fromHeader,
-                    to: toList,
-                    bcc: bccList.length ? bccList : undefined,
+                    to: toStr,
+                    bcc: bccStr,
                     replyTo: replyToHeader,
-                    subject,
+                    subject: subject,
                     text: plainTextContent,
                     html: htmlContent,
-                    attachments: attachmentBuffer
-                        ? [{ filename: attachmentFilename, content: attachmentBuffer, contentType: 'application/pdf' }]
-                        : [],
+                    attachments: attachmentBase64 ? [
+                        {
+                            filename: attachmentFilename,
+                            content: Buffer.from(attachmentBase64, 'base64'),
+                            contentType: 'application/pdf',
+                            contentDisposition: 'attachment'
+                        }
+                    ] : [],
                     headers: emailHeaders
-                });
-                console.log('[invoice-email] sent via DIRECT SMTP:', info.messageId, '| attachment:', !!attachmentBuffer);
+                };
+
+                const info = await transporter.sendMail(mailOptions);
+                console.log("📬 Invoice email sent successfully via Direct SMTP:", info.messageId);
+                sentSuccess = true;
                 return res.status(200).json({ success: true, messageId: info.messageId, method: 'direct_smtp' });
             } catch (smtpErr) {
-                console.warn('[invoice-email] Direct SMTP failed:', smtpErr.message);
+                console.warn("⚠️ Direct SMTP failed, falling back to EMAIL_API_URL:", smtpErr.message);
                 lastError = smtpErr;
             }
         }
 
-        // ================= Strategy B: EMAIL_API_URL fallback =================
-        // Testing layi Render env ch FORCE_DIRECT_SMTP=true set karo, fallback band ho jayega
-        if (process.env.FORCE_DIRECT_SMTP !== 'true' && process.env.EMAIL_API_URL) {
+        // Strategy B: Fallback to EMAIL_API_URL with all deliverability parameters
+        if (!sentSuccess && process.env.EMAIL_API_URL) {
             try {
-                const response = await axios.post(
-                    process.env.EMAIL_API_URL,
-                    {
-                        smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
-                        smtpPort: process.env.SMTP_PORT || 587,
-                        smtpUser: process.env.SMTP_USER,
-                        smtpPass: process.env.SMTP_PASS,
-                        from: fromHeader,
-                        replyTo: replyToHeader,
-                        to: toList.join(', '),
-                        bcc: bccList.length ? bccList.join(', ') : undefined,
-                        subject,
-                        text: plainTextContent,
-                        html: htmlContent,
-                        attachments: attachmentBuffer
-                            ? [{
-                                filename: attachmentFilename,
-                                content: attachmentBuffer.toString('base64'),
-                                encoding: 'base64',
-                                contentType: 'application/pdf'
-                            }]
-                            : [],
-                        headers: emailHeaders
-                    },
-                    { headers: { 'Content-Type': 'application/json' }, timeout: 45000 }
-                );
-                console.log('[invoice-email] sent via EMAIL_API_URL (check: PDF attach hoyi ya nahi)');
+                const response = await axios.post(process.env.EMAIL_API_URL, {
+                    smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
+                    smtpPort: process.env.SMTP_PORT || 587,
+                    smtpUser: process.env.SMTP_USER,
+                    smtpPass: process.env.SMTP_PASS,
+                    from: fromHeader,
+                    replyTo: replyToHeader,
+                    to: toStr,
+                    bcc: bccStr,
+                    subject: subject,
+                    text: plainTextContent,
+                    html: htmlContent,
+                    attachments: attachmentsPayload,
+                    headers: emailHeaders
+                }, {
+                    headers: { "Content-Type": "application/json" },
+                    timeout: 45000
+                });
+
+                console.log("📬 Invoice email sent successfully via EMAIL_API_URL!");
+                sentSuccess = true;
                 return res.status(200).json({ success: true, method: 'email_api_url', data: response.data });
             } catch (apiErr) {
                 const errData = apiErr.response ? apiErr.response.data : null;
-                console.error('[invoice-email] EMAIL_API_URL error:', errData || apiErr.message);
+                console.error("❌ Error sending email via EMAIL_API_URL:", errData || apiErr.message);
                 lastError = errData || apiErr;
             }
         }
 
-        const errorMsg = lastError
-            ? lastError.message || JSON.stringify(lastError)
-            : 'No available mail transport configured.';
-        return res.status(500).json({ success: false, error: 'Failed to send invoice email', details: errorMsg });
+        if (!sentSuccess) {
+            const errorMsg = lastError ? (lastError.message || JSON.stringify(lastError)) : "No available mail transport configured.";
+            return res.status(500).json({
+                success: false,
+                error: "Failed to send invoice email",
+                details: errorMsg
+            });
+        }
+
     } catch (error) {
-        console.error('[invoice-email] Unexpected error:', error);
-        return res.status(500).json({ success: false, error: error.message || 'Internal server error' });
+        console.error("❌ Unexpected error in send-invoice:", error);
+        return res.status(500).json({
+            success: false,
+            error: error.message || "Internal server error while sending invoice email"
+        });
     }
 });
 
-// router.post(['/send-invoice', '/send-invoice-email'], async (req, res) => {
-//     try {
-//         const {
-//             to,
-//             bcc,
-//             content,
-//             companyName,
-//             pdfAttachment,
-//             customdate,
-//             duedate,
-//             InvoiceNumber,
-//             amountdue,
-//             currencyType,
-//             amountdue1,
-//             invoiceId,
-//             replyEmail
-//         } = req.body;
+router.post("/send-invoice-email", async (req, res) => {
 
-//         if (!to) {
-//             return res.status(400).json({
-//                 success: false,
-//                 error: 'Recipient email (to) is required.'
-//             });
-//         }
-
-//         const safeInvoiceNumber = String(InvoiceNumber || 'INV').replace(/[#]/g, '').trim();
-//         const cleanCompanyName = (companyName || 'Canadian Screw Piles').replace(/["\r\n]/g, '').trim();
-//         const currencySign = getCurrencySign(currencyType) || '$';
-//         const displayAmount = (amountdue1 !== undefined && amountdue1 !== null && amountdue1 !== '') 
-//             ? amountdue1 
-//             : (amountdue !== undefined && amountdue !== null && amountdue !== '' ? amountdue : '0.00');
-//         const formattedAmount = `${currencySign}${displayAmount}`;
-//         const issueDate = customdate || moment().format('MMMM D, YYYY');
-//         const dueDateText = duedate || 'Due on Receipt';
-
-//         // Extract clean Base64 string for PDF
-//         let attachmentBase64 = '';
-//         if (typeof pdfAttachment === 'string') {
-//             const base64Match = pdfAttachment.match(/base64,(.*)$/);
-//             attachmentBase64 = base64Match ? base64Match[1].trim() : pdfAttachment.trim();
-//         }
-
-//         const safeFileNum = safeInvoiceNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
-//         const attachmentFilename = `Invoice-${safeFileNum}.pdf`;
-//         const subject = `Invoice #${safeInvoiceNumber} from ${cleanCompanyName}`;
-
-//         // 1. Plain Text Alternative (CRITICAL FOR INBOX DELIVERABILITY - Prevents MIME_HTML_ONLY spam penalty)
-//         const plainTextContent = `Hello,
-
-// Please find attached Invoice #${safeInvoiceNumber} from ${cleanCompanyName}.
-
-// ============================================================
-// INVOICE SUMMARY
-// ============================================================
-// Invoice Number : #${safeInvoiceNumber}
-// Issue Date     : ${issueDate}
-// Due Date       : ${dueDateText}
-// Amount Due     : ${formattedAmount}
-// ============================================================
-// ${content && content.trim() ? `\nNote from ${cleanCompanyName}:\n${content.trim()}\n` : ''}
-// ${invoiceId ? `\nView & Sign Invoice Online:\nhttps://cspiles.vercel.app/customersigninvoice?invoiceId=${invoiceId}\n` : ''}
-// Your official invoice is attached to this email as a PDF document (${attachmentFilename}).
-
-// If you have any questions or require further assistance, please reply directly to this email.
-
-// Thank you for your business!
-
-// Best regards,
-// ${cleanCompanyName}
-// `;
-
-//         // 2. High Deliverability HTML Template (No empty links, valid 6-char hex colors, email-safe tables)
-//         const onlineInvoiceButton = invoiceId ? `
-//           <div style="text-align: center; margin: 28px 0 20px 0;">
-//             <a href="https://cspiles.vercel.app/customersigninvoice?invoiceId=${invoiceId}" 
-//                target="_blank" 
-//                rel="noopener noreferrer" 
-//                style="background-color: #2563eb; color: #ffffff; padding: 13px 30px; font-size: 15px; font-weight: 600; text-decoration: none; border-radius: 6px; display: inline-block;">
-//               View &amp; Sign Invoice
-//             </a>
-//           </div>
-//         ` : '';
-
-//         const noteSection = content && content.trim() ? `
-//           <div style="background-color: #f8fafc; border-left: 4px solid #2563eb; padding: 14px 18px; margin: 20px 0; border-radius: 0 6px 6px 0;">
-//             <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #334155;">${content.trim()}</p>
-//           </div>
-//         ` : '';
-
-//         const htmlContent = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-// <html xmlns="http://www.w3.org/1999/xhtml" lang="en">
-// <head>
-//   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-//   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-//   <title>${subject}</title>
-// </head>
-// <body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
-//   <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; padding: 30px 10px;">
-//     <tr>
-//       <td align="center">
-//         <!-- Main Card -->
-//         <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
-          
-//           <!-- Header -->
-//           <tr>
-//             <td style="padding: 30px 36px 20px 36px; border-bottom: 1px solid #f1f5f9;">
-//               <table border="0" cellpadding="0" cellspacing="0" width="100%">
-//                 <tr>
-//                   <td>
-//                     <h2 style="margin: 0; font-size: 20px; font-weight: 700; color: #0f172a;">${cleanCompanyName}</h2>
-//                     <p style="margin: 4px 0 0 0; font-size: 13px; color: #64748b;">Billing Department</p>
-//                   </td>
-//                   <td align="right">
-//                     <span style="display: inline-block; background-color: #eff6ff; color: #1d4ed8; padding: 6px 14px; font-size: 13px; font-weight: 600; border-radius: 9999px; border: 1px solid #dbeafe;">
-//                       INVOICE #${safeInvoiceNumber}
-//                     </span>
-//                   </td>
-//                 </tr>
-//               </table>
-//             </td>
-//           </tr>
-
-//           <!-- Amount Box -->
-//           <tr>
-//             <td style="padding: 24px 36px 10px 36px;">
-//               <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 22px; text-align: center;">
-//                 <p style="margin: 0 0 6px 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; font-weight: 600;">Amount Due</p>
-//                 <h1 style="margin: 0; font-size: 36px; font-weight: 800; color: #0f172a; line-height: 1.1;">${formattedAmount}</h1>
-//                 <p style="margin: 8px 0 0 0; font-size: 14px; color: #dc2626; font-weight: 500;">Due: ${dueDateText}</p>
-//               </div>
-//             </td>
-//           </tr>
-
-//           <!-- Invoice Details Table -->
-//           <tr>
-//             <td style="padding: 14px 36px;">
-//               <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size: 14px; color: #334155; border-collapse: collapse;">
-//                 <tr>
-//                   <td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; color: #64748b;">Invoice Number</td>
-//                   <td align="right" style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-weight: 600; color: #0f172a;">#${safeInvoiceNumber}</td>
-//                 </tr>
-//                 <tr>
-//                   <td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; color: #64748b;">Issue Date</td>
-//                   <td align="right" style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-weight: 600; color: #0f172a;">${issueDate}</td>
-//                 </tr>
-//                 <tr>
-//                   <td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; color: #64748b;">Due Date</td>
-//                   <td align="right" style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-weight: 600; color: #0f172a;">${dueDateText}</td>
-//                 </tr>
-//               </table>
-
-//               ${noteSection}
-
-//               ${onlineInvoiceButton}
-
-//               <!-- PDF Attachment Notice -->
-//               <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px 18px; margin: 22px 0 10px 0;">
-//                 <table border="0" cellpadding="0" cellspacing="0" width="100%">
-//                   <tr>
-//                     <td width="26" valign="top" style="font-size: 18px; line-height: 1;">&#128206;</td>
-//                     <td style="font-size: 13px; color: #475569; line-height: 1.5;">
-//                       <strong>PDF Invoice Attached:</strong> An official, printable PDF copy (<span style="color: #0f172a; font-family: monospace;">${attachmentFilename}</span>) is attached to this email.
-//                     </td>
-//                   </tr>
-//                 </table>
-//               </div>
-//             </td>
-//           </tr>
-
-//           <!-- Footer -->
-//           <tr>
-//             <td style="padding: 22px 36px 30px 36px; border-top: 1px solid #f1f5f9; text-align: center;">
-//               <p style="margin: 0 0 6px 0; font-size: 13px; color: #64748b;">
-//                 Thank you for your business! If you have questions regarding this invoice, simply reply directly to this email.
-//               </p>
-//               <p style="margin: 0; font-size: 12px; color: #94a3b8;">
-//                 &copy; ${new Date().getFullYear()} ${cleanCompanyName}. All rights reserved.
-//               </p>
-//             </td>
-//           </tr>
-
-//         </table>
-//       </td>
-//     </tr>
-//   </table>
-// </body>
-// </html>`;
-
-//         const toStr = Array.isArray(to) ? to.join(', ') : String(to || '');
-//         const bccStr = Array.isArray(bcc) ? bcc.join(', ') : (bcc ? String(bcc) : undefined);
-//         const fromHeader = `"${cleanCompanyName}" <${process.env.SMTP_USER}>`;
-//         const replyToHeader = replyEmail ? `"${cleanCompanyName}" <${replyEmail}>` : fromHeader;
-
-//         const emailHeaders = {
-//             'X-Mailer': 'CSPiles Invoicing System',
-//             'X-Priority': '3',
-//             'Importance': 'Normal',
-//             'X-Entity-Ref-ID': `inv-${safeFileNum}-${Date.now()}`
-//         };
-
-//         const attachmentsPayload = attachmentBase64 ? [
-//             {
-//                 filename: attachmentFilename,
-//                 content: attachmentBase64,
-//                 encoding: 'base64',
-//                 contentType: 'application/pdf',
-//                 contentDisposition: 'attachment'
-//             }
-//         ] : [];
-
-//         let sentSuccess = false;
-//         let lastError = null;
-
-//         // Strategy A: Direct Nodemailer SMTP (Fastest, full RFC MIME structure, direct attachment Buffer)
-//         if (process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_HOST) {
-//             try {
-//                 const isSecure = Number(process.env.SMTP_PORT) === 465;
-//                 const transporter = nodemailer.createTransport({
-//                     host: process.env.SMTP_HOST,
-//                     port: Number(process.env.SMTP_PORT) || 587,
-//                     secure: isSecure,
-//                     auth: {
-//                         user: process.env.SMTP_USER,
-//                         pass: process.env.SMTP_PASS
-//                     },
-//                     tls: {
-//                         rejectUnauthorized: false
-//                     }
-//                 });
-
-//                 const mailOptions = {
-//                     from: fromHeader,
-//                     to: toStr,
-//                     bcc: bccStr,
-//                     replyTo: replyToHeader,
-//                     subject: subject,
-//                     text: plainTextContent,
-//                     html: htmlContent,
-//                     attachments: attachmentBase64 ? [
-//                         {
-//                             filename: attachmentFilename,
-//                             content: Buffer.from(attachmentBase64, 'base64'),
-//                             contentType: 'application/pdf',
-//                             contentDisposition: 'attachment'
-//                         }
-//                     ] : [],
-//                     headers: emailHeaders
-//                 };
-
-//                 const info = await transporter.sendMail(mailOptions);
-//                 console.log("📬 Invoice email sent successfully via Direct SMTP:", info.messageId);
-//                 sentSuccess = true;
-//                 return res.status(200).json({ success: true, messageId: info.messageId, method: 'direct_smtp' });
-//             } catch (smtpErr) {
-//                 console.warn("⚠️ Direct SMTP failed, falling back to EMAIL_API_URL:", smtpErr.message);
-//                 lastError = smtpErr;
-//             }
-//         }
-
-//         // Strategy B: Fallback to EMAIL_API_URL with all deliverability parameters
-//         if (!sentSuccess && process.env.EMAIL_API_URL) {
-//             try {
-//                 const response = await axios.post(process.env.EMAIL_API_URL, {
-//                     smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
-//                     smtpPort: process.env.SMTP_PORT || 587,
-//                     smtpUser: process.env.SMTP_USER,
-//                     smtpPass: process.env.SMTP_PASS,
-//                     from: fromHeader,
-//                     replyTo: replyToHeader,
-//                     to: toStr,
-//                     bcc: bccStr,
-//                     subject: subject,
-//                     text: plainTextContent,
-//                     html: htmlContent,
-//                     attachments: attachmentsPayload,
-//                     headers: emailHeaders
-//                 }, {
-//                     headers: { "Content-Type": "application/json" },
-//                     timeout: 45000
-//                 });
-
-//                 console.log("📬 Invoice email sent successfully via EMAIL_API_URL!");
-//                 sentSuccess = true;
-//                 return res.status(200).json({ success: true, method: 'email_api_url', data: response.data });
-//             } catch (apiErr) {
-//                 const errData = apiErr.response ? apiErr.response.data : null;
-//                 console.error("❌ Error sending email via EMAIL_API_URL:", errData || apiErr.message);
-//                 lastError = errData || apiErr;
-//             }
-//         }
-
-//         if (!sentSuccess) {
-//             const errorMsg = lastError ? (lastError.message || JSON.stringify(lastError)) : "No available mail transport configured.";
-//             return res.status(500).json({
-//                 success: false,
-//                 error: "Failed to send invoice email",
-//                 details: errorMsg
-//             });
-//         }
-
-//     } catch (error) {
-//         console.error("❌ Unexpected error in send-invoice:", error);
-//         return res.status(500).json({
-//             success: false,
-//             error: error.message || "Internal server error while sending invoice email"
-//         });
-//     }
-// });
-
-// router.post("/send-invoice-email", async (req, res) => {
-
-//     console.log(process.env.SMTP_HOST ,"process.env.SMTP_HOST");
-//     console.log(process.env.SMTP_PORT ,"process.env.SMTP_PORT");
-//     console.log(process.env.SMTP_USER ,"process.env.SMTP_USER");
-//     console.log(process.env.SMTP_PASS ,"process.env.SMTP_PASS");
-//     console.log(process.env.SMTP_CRYPTO ,"process.env.SMTP_CRYPTO");
+    console.log(process.env.SMTP_HOST ,"process.env.SMTP_HOST");
+    console.log(process.env.SMTP_PORT ,"process.env.SMTP_PORT");
+    console.log(process.env.SMTP_USER ,"process.env.SMTP_USER");
+    console.log(process.env.SMTP_PASS ,"process.env.SMTP_PASS");
+    console.log(process.env.SMTP_CRYPTO ,"process.env.SMTP_CRYPTO");
     
-//     try {
-//       const {
-//         to,
-//         bcc,
-//         content,
-//         companyName,
-//         pdfAttachment,
-//         customdate,
-//         duedate,
-//         InvoiceNumber,
-//         invoiceId,
-//         ownerId,
-//         amountdue,
-//         currencyType,
-//         amountdue1,
-//       } = req.body;
-// //   user: "canadianscrewpiles@gmail.com",
-// //             pass: "vhjcbemwmrynvmcr"
-//       // SMTP credentials — stored in your Render environment
-//       const smtpHost = process.env.SMTP_HOST;
-//       const smtpPort = process.env.SMTP_PORT;
-//       const smtpUser = process.env.SMTP_USER;
-//       const smtpPass = process.env.SMTP_PASS;
-//       const smtpCrypto = process.env.SMTP_CRYPTO;
-  
-//       // Hostinger endpoint
-//       const phpEndpoint =
-//         process.env.HOSTINGER_MAILER_URL ||
-//         "https://jdwebservices.com/demo/smtp/sendemail.php";
-  
-//       // API key — must match the .smtp_api_key file on Hostinger
-//       const apiKey =
-//         process.env.HOSTINGER_API_KEY || "MY_SUPER_SECRET_EMAIL_KEY_92x8HD!";
-  
-//       // Build email HTML (you can replace this with your existing HTML)
-//       const html = `
-//         <html>
-//           <body style="background-color:#c5c1c187; margin-top: 40px; padding:20px 0px;">
-//                <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#fff; padding: 15px 30px; margin-top: 40px;">
-//                   <div style="padding: 10px 0px;  text-align: center; font-weight: 500; color: #999999">
-//                       <p style="margin-bottom:0px">${customdate}</p>
-//                       <p style="margin-top: 0px;">Invoice #${InvoiceNumber}</p>
-//                   </div>
-//                   <div>
-//                       <h1 style="margin-bottom:0px; font-size: 35px; color:#222">Invoice from ${companyName}</h1>
-//                       <h1 style="margin: 0px; font-size: 35px; color:#222">${currencyType}${amountdue1}</h1>
-//                       <p style="margin-top: 0px; color:#222">Due: ${duedate}</p>
-//                   </div>
-//                   <div style="background-color:#f5f4f4; padding: 1px 20px; margin: 30px 0px 10px;">
-//                       <p style="color:#222">${content}</p>
-//                   </div>
-//                   <div style="margin: 20px 0px 10px;">
-//                       <p style="color:#222">This email contains a unique link just for you. Please do not share this email or link or others will have access to your document.</p>
-//                       <a href="https://cspiles.vercel.app/customersigninvoice?invoiceId=${invoiceId}" style="display:inline-block;padding:10px 20px;background-color:#4CAF50;color:#fff;text-decoration:none;border-radius:5px;">View this Invoice</a>
-//                   </div>
-//               </section>
-//               <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#f5f4f4; padding: 35px 30px; margin-bottom: 40px;">
-//                   <div>
-//                       <p style="font-size: 15px; color:#222">Make your invoice</p>
-//                       <h1 style="font-size: 35px; margin-bottom: 0; margin-top: 0; color:#222">INVOICE</h1>
-//                   </div>
-//                   <div>
-//                       <ul style="text-align: center;display: inline-flex;list-style:none;padding-left:0px">
-//                           <li>
-//                               <a href="">
-//                                   <img src="https://static.xx.fbcdn.net/rsrc.php/yb/r/hLRJ1GG_y0J.ico" alt="facebook icon" style="margin: 0px 5px;">
-//                               </a>
-//                           </li>
-//                           <li>
-//                               <a href="">
-//                                   <img src="https://static.cdninstagram.com/rsrc.php/y4/r/QaBlI0OZiks.ico" alt="instagram icon" style="margin: 0px 5px;">
-//                               </a>
-//                           </li>
-//                       </ul>
-//                   </div>
-//               </section>
-//           </body>
-//               </html>
-//       `;
-  
-//       const payload = {
-//         smtpHost,
-//         smtpPort,
-//         smtpUser,
-//         smtpPass,
-//         smtpCrypto,
-//         fromEmail: smtpUser,
-//         fromName: companyName || "Your Company",
-//         to,
-//         bcc,
-//         subject: `Invoice from ${companyName}`,
-//         html,
-//         attachments: [
-//           {
-//             filename: `Invoice #${InvoiceNumber}.pdf`,
-//             contentBase64: pdfAttachment, // base64 data:application/pdf;base64,...
-//           },
-//         ],
-//       };
-  
-//       const resp = await axios.post(phpEndpoint, payload, {
-//         headers: {
-//           "Content-Type": "application/json",
-//           "X-API-KEY": apiKey,
-//         },
-//         timeout: 30000,
-//       });
-  
-//       if (resp.data && resp.data.success) {
-//         return res.status(200).json({ success: true });
-//       } else {
-//         return res
-//           .status(500)
-//           .json({ success: false, error: resp.data || "Unknown response from PHP" });
-//       }
-//     } catch (err) {
-//     // Detailed Axios / Network error logging
-//     console.error("⚠️ Error calling Hostinger sendemail:");
-    
-//     // General error message
-//     console.error("Message:", err.message);
-    
-//     // Axios error code (e.g., ECONNREFUSED, ETIMEDOUT)
-//     if (err.code) console.error("Code:", err.code);
-  
-//     // Axios config info
-//     if (err.config && err.config.url) {
-//       console.error("Request URL:", err.config.url);
-//     }
-  
-//     // If we got an HTTP response back from Hostinger
-//     if (err.response) {
-//       console.error("Status:", err.response.status);
-//       console.error("Status Text:", err.response.statusText);
-//       console.error("Headers:", err.response.headers);
-//       console.error("Response Data:", err.response.data);
-//     } else {
-//       // If no HTTP response (network / timeout / DNS issue)
-//       console.error("No response received from Hostinger (network or timeout).");
-//     }
-  
-//     // Return user-friendly info to client
-//     return res.status(500).json({
-//       success: false,
-//       error: err.message || "Failed to contact Hostinger mailer",
-//       details: {
-//         code: err.code || null,
-//         status: err.response ? err.response.status : null,
-//         data: err.response ? err.response.data : null,
-//       },
-//     });
-//   }
-//   });
-
-
-// router.post('/send-deposit-email', async (req, res) => {
-//     const {
-//         to,
-//         bcc,
-//         content,
-//         companyName,
-//         pdfAttachment,
-//         customdate,
-//         duedate,
-//         depositamount,
-//         InvoiceNumber,
-//         currencyType,
-//     } = req.body;
-
-//     const transporter = nodemailer.createTransport({
-//         service: 'gmail',
-//         auth: {
-//             user: "canadianscrewpiles@gmail.com",
+    try {
+      const {
+        to,
+        bcc,
+        content,
+        companyName,
+        pdfAttachment,
+        customdate,
+        duedate,
+        InvoiceNumber,
+        invoiceId,
+        ownerId,
+        amountdue,
+        currencyType,
+        amountdue1,
+      } = req.body;
+//   user: "canadianscrewpiles@gmail.com",
 //             pass: "vhjcbemwmrynvmcr"
-//         },
-//     });
-//     // const transporter = nodemailer.createTransport({
-//     //     host: 'smtp.hostinger.com', // Replace with your hosting provider's SMTP server
-//     //     port: 465, // Replace with the appropriate port
-//     //     secure: true, // true for 465, false for other ports
-//     //     auth: {
-//     //       user: 'canadianscrewpiles@gmail.com',
-//     //       pass: 'lpctmxmuoudgnopd'
-//     //     }
-//     //   });
+      // SMTP credentials — stored in your Render environment
+      const smtpHost = process.env.SMTP_HOST;
+      const smtpPort = process.env.SMTP_PORT;
+      const smtpUser = process.env.SMTP_USER;
+      const smtpPass = process.env.SMTP_PASS;
+      const smtpCrypto = process.env.SMTP_CRYPTO;
+  
+      // Hostinger endpoint
+      const phpEndpoint =
+        process.env.HOSTINGER_MAILER_URL ||
+        "https://jdwebservices.com/demo/smtp/sendemail.php";
+  
+      // API key — must match the .smtp_api_key file on Hostinger
+      const apiKey =
+        process.env.HOSTINGER_API_KEY || "MY_SUPER_SECRET_EMAIL_KEY_92x8HD!";
+  
+      // Build email HTML (you can replace this with your existing HTML)
+      const html = `
+        <html>
+          <body style="background-color:#c5c1c187; margin-top: 40px; padding:20px 0px;">
+               <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#fff; padding: 15px 30px; margin-top: 40px;">
+                  <div style="padding: 10px 0px;  text-align: center; font-weight: 500; color: #999999">
+                      <p style="margin-bottom:0px">${customdate}</p>
+                      <p style="margin-top: 0px;">Invoice #${InvoiceNumber}</p>
+                  </div>
+                  <div>
+                      <h1 style="margin-bottom:0px; font-size: 35px; color:#222">Invoice from ${companyName}</h1>
+                      <h1 style="margin: 0px; font-size: 35px; color:#222">${currencyType}${amountdue1}</h1>
+                      <p style="margin-top: 0px; color:#222">Due: ${duedate}</p>
+                  </div>
+                  <div style="background-color:#f5f4f4; padding: 1px 20px; margin: 30px 0px 10px;">
+                      <p style="color:#222">${content}</p>
+                  </div>
+                  <div style="margin: 20px 0px 10px;">
+                      <p style="color:#222">This email contains a unique link just for you. Please do not share this email or link or others will have access to your document.</p>
+                      <a href="https://cspiles.vercel.app/customersigninvoice?invoiceId=${invoiceId}" style="display:inline-block;padding:10px 20px;background-color:#4CAF50;color:#fff;text-decoration:none;border-radius:5px;">View this Invoice</a>
+                  </div>
+              </section>
+              <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#f5f4f4; padding: 35px 30px; margin-bottom: 40px;">
+                  <div>
+                      <p style="font-size: 15px; color:#222">Make your invoice</p>
+                      <h1 style="font-size: 35px; margin-bottom: 0; margin-top: 0; color:#222">INVOICE</h1>
+                  </div>
+                  <div>
+                      <ul style="text-align: center;display: inline-flex;list-style:none;padding-left:0px">
+                          <li>
+                              <a href="">
+                                  <img src="https://static.xx.fbcdn.net/rsrc.php/yb/r/hLRJ1GG_y0J.ico" alt="facebook icon" style="margin: 0px 5px;">
+                              </a>
+                          </li>
+                          <li>
+                              <a href="">
+                                  <img src="https://static.cdninstagram.com/rsrc.php/y4/r/QaBlI0OZiks.ico" alt="instagram icon" style="margin: 0px 5px;">
+                              </a>
+                          </li>
+                      </ul>
+                  </div>
+              </section>
+          </body>
+              </html>
+      `;
+  
+      const payload = {
+        smtpHost,
+        smtpPort,
+        smtpUser,
+        smtpPass,
+        smtpCrypto,
+        fromEmail: smtpUser,
+        fromName: companyName || "Your Company",
+        to,
+        bcc,
+        subject: `Invoice from ${companyName}`,
+        html,
+        attachments: [
+          {
+            filename: `Invoice #${InvoiceNumber}.pdf`,
+            contentBase64: pdfAttachment, // base64 data:application/pdf;base64,...
+          },
+        ],
+      };
+  
+      const resp = await axios.post(phpEndpoint, payload, {
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-KEY": apiKey,
+        },
+        timeout: 30000,
+      });
+  
+      if (resp.data && resp.data.success) {
+        return res.status(200).json({ success: true });
+      } else {
+        return res
+          .status(500)
+          .json({ success: false, error: resp.data || "Unknown response from PHP" });
+      }
+    } catch (err) {
+    // Detailed Axios / Network error logging
+    console.error("⚠️ Error calling Hostinger sendemail:");
+    
+    // General error message
+    console.error("Message:", err.message);
+    
+    // Axios error code (e.g., ECONNREFUSED, ETIMEDOUT)
+    if (err.code) console.error("Code:", err.code);
+  
+    // Axios config info
+    if (err.config && err.config.url) {
+      console.error("Request URL:", err.config.url);
+    }
+  
+    // If we got an HTTP response back from Hostinger
+    if (err.response) {
+      console.error("Status:", err.response.status);
+      console.error("Status Text:", err.response.statusText);
+      console.error("Headers:", err.response.headers);
+      console.error("Response Data:", err.response.data);
+    } else {
+      // If no HTTP response (network / timeout / DNS issue)
+      console.error("No response received from Hostinger (network or timeout).");
+    }
+  
+    // Return user-friendly info to client
+    return res.status(500).json({
+      success: false,
+      error: err.message || "Failed to contact Hostinger mailer",
+      details: {
+        code: err.code || null,
+        status: err.response ? err.response.status : null,
+        data: err.response ? err.response.data : null,
+      },
+    });
+  }
+  });
 
-//     const currencySign = getCurrencySign(currencyType);
 
-//     const mailOptions = {
-//         from: 'canadianscrewpiles@gmail.com',
-//         to: to.join(', '),
-//         bcc: bcc.join(', '),
-//         subject: `Invoice from ${companyName}`,
-//         attachments: [
-//             {
-//                 filename: `Invoice #${InvoiceNumber}.pdf`,
-//                 content: pdfAttachment.split(';base64,')[1], // Extract base64 content
-//                 encoding: 'base64',
-//             }
-//         ],
-//         html: `<html>
-//         <body style="background-color:#c5c1c187; margin-top: 40px; padding:20px 0px;">
-//              <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#fff; padding: 15px 30px; margin-top: 40px;">
-//                 <div style="padding: 10px 0px;  text-align: center; font-weight: 500; color: #999999">
-//                     <p style="margin-bottom:0px">${customdate}</p>
-//                     <p style="margin-top: 0px;">Invoice #${InvoiceNumber}</p>
-//                 </div>
-//                 <div>
-//                     <h1 style="margin-bottom:0px; font-size: 35px; color:#222">Invoice from ${companyName}</h1>
-//                     <h1 style="margin: 0px; font-size: 35px; color:#222">${currencySign}${depositamount}</h1>
-//                     <p style="margin-top: 0px; color:#222">Due: ${duedate}</p>
-//                 </div>
-//                 <div style="background-color:#f5f4f4; padding: 1px 20px; margin: 30px 0px 10px;">
-//                     <p style="color:#222">${content}</p>
-//                 </div>
-//                 <div style="margin: 20px 0px 10px;">
-//                     <p style="color:#222">This email contains a unique link just for you. Please do not share this email or link or others will have access to your document.</p>
-//                 </div>
-//             </section>
-//             <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#f5f4f4; padding: 35px 30px; margin-bottom: 40px;">
-//                 <div>
-//                     <p style="font-size: 15px; color:#222">Make your invoice</p>
-//                     <h1 style="font-size: 35px; margin-bottom: 0; margin-top: 0; color:#222">INVOICE</h1>
-//                 </div>
-//                 <div>
-//                     <ul style="text-align: center;display: inline-flex;list-style:none;padding-left:0px">
-//                         <li>
-//                             <a href="">
-//                                 <img src="https://static.xx.fbcdn.net/rsrc.php/yb/r/hLRJ1GG_y0J.ico" alt="facebook icon" style="margin: 0px 5px;">
-//                             </a>
-//                         </li>
-//                         <li>
-//                             <a href="">
-//                                 <img src="https://static.cdninstagram.com/rsrc.php/y4/r/QaBlI0OZiks.ico" alt="instagram icon" style="margin: 0px 5px;">
-//                             </a>
-//                         </li>
-//                     </ul>
-//                 </div>
-//             </section>
-//         </body>
-//             </html>`,
-//     };
+router.post('/send-deposit-email', async (req, res) => {
+    const {
+        to,
+        bcc,
+        content,
+        companyName,
+        pdfAttachment,
+        customdate,
+        duedate,
+        depositamount,
+        InvoiceNumber,
+        currencyType,
+    } = req.body;
 
-//     try {
-//         await transporter.sendMail(mailOptions);
-//         console.log('Email sent successfully!');
-//         res.status(200).json({ success: true });
-//     } catch (error) {
-//         console.error('Error sending email:', error);
-//         res.status(500).json({ success: false, error: 'Failed to send email.' });
-//     }
-// });
+    const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+            user: "canadianscrewpiles@gmail.com",
+            pass: "vhjcbemwmrynvmcr"
+        },
+    });
+    // const transporter = nodemailer.createTransport({
+    //     host: 'smtp.hostinger.com', // Replace with your hosting provider's SMTP server
+    //     port: 465, // Replace with the appropriate port
+    //     secure: true, // true for 465, false for other ports
+    //     auth: {
+    //       user: 'canadianscrewpiles@gmail.com',
+    //       pass: 'lpctmxmuoudgnopd'
+    //     }
+    //   });
+
+    const currencySign = getCurrencySign(currencyType);
+
+    const mailOptions = {
+        from: 'canadianscrewpiles@gmail.com',
+        to: to.join(', '),
+        bcc: bcc.join(', '),
+        subject: `Invoice from ${companyName}`,
+        attachments: [
+            {
+                filename: `Invoice #${InvoiceNumber}.pdf`,
+                content: pdfAttachment.split(';base64,')[1], // Extract base64 content
+                encoding: 'base64',
+            }
+        ],
+        html: `<html>
+        <body style="background-color:#c5c1c187; margin-top: 40px; padding:20px 0px;">
+             <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#fff; padding: 15px 30px; margin-top: 40px;">
+                <div style="padding: 10px 0px;  text-align: center; font-weight: 500; color: #999999">
+                    <p style="margin-bottom:0px">${customdate}</p>
+                    <p style="margin-top: 0px;">Invoice #${InvoiceNumber}</p>
+                </div>
+                <div>
+                    <h1 style="margin-bottom:0px; font-size: 35px; color:#222">Invoice from ${companyName}</h1>
+                    <h1 style="margin: 0px; font-size: 35px; color:#222">${currencySign}${depositamount}</h1>
+                    <p style="margin-top: 0px; color:#222">Due: ${duedate}</p>
+                </div>
+                <div style="background-color:#f5f4f4; padding: 1px 20px; margin: 30px 0px 10px;">
+                    <p style="color:#222">${content}</p>
+                </div>
+                <div style="margin: 20px 0px 10px;">
+                    <p style="color:#222">This email contains a unique link just for you. Please do not share this email or link or others will have access to your document.</p>
+                </div>
+            </section>
+            <section style="font-family:sans-serif; width: 50%; margin: auto; background-color:#f5f4f4; padding: 35px 30px; margin-bottom: 40px;">
+                <div>
+                    <p style="font-size: 15px; color:#222">Make your invoice</p>
+                    <h1 style="font-size: 35px; margin-bottom: 0; margin-top: 0; color:#222">INVOICE</h1>
+                </div>
+                <div>
+                    <ul style="text-align: center;display: inline-flex;list-style:none;padding-left:0px">
+                        <li>
+                            <a href="">
+                                <img src="https://static.xx.fbcdn.net/rsrc.php/yb/r/hLRJ1GG_y0J.ico" alt="facebook icon" style="margin: 0px 5px;">
+                            </a>
+                        </li>
+                        <li>
+                            <a href="">
+                                <img src="https://static.cdninstagram.com/rsrc.php/y4/r/QaBlI0OZiks.ico" alt="instagram icon" style="margin: 0px 5px;">
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </section>
+        </body>
+            </html>`,
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+        console.log('Email sent successfully!');
+        res.status(200).json({ success: true });
+    } catch (error) {
+        console.error('Error sending email:', error);
+        res.status(500).json({ success: false, error: 'Failed to send email.' });
+    }
+});
 
 // GET API: Fetch Waiver details by ID
 

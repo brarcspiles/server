@@ -936,8 +936,8 @@ router.post(['/send-invoice', '/send-invoice-email'], async (req, res) => {
             : '';
 
         const buttonSection = invoiceUrl
-            ? `<tr><td align="center" style="padding:4px 32px 24px 32px;">
-                 <a href="${e(invoiceUrl)}" style="background-color:#2563eb; color:#ffffff; padding:12px 28px; font-size:15px; font-weight:600; text-decoration:none; border-radius:6px; display:inline-block;">View and sign invoice</a>
+            ? `<tr><td style="padding:4px 28px 16px 28px; font-size:14px; color:#4b5563;">
+                 To review or sign this document online: <a href="${e(invoiceUrl)}" style="color:#2563eb; text-decoration:underline;">Click here</a>
                </td></tr>`
             : '';
 
@@ -961,35 +961,33 @@ router.post(['/send-invoice', '/send-invoice-email'], async (req, res) => {
   <meta name="color-scheme" content="light" />
   <title>${e(subject)}</title>
 </head>
-<body style="margin:0; padding:0; background-color:#f4f6f8; font-family:Arial, Helvetica, sans-serif;">
-  <div style="display:none; max-height:0; overflow:hidden; opacity:0;">
-    Invoice #${e(displayNumber)} from ${e(displayCompany)}. Amount due ${e(formattedAmount)}.
-  </div>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f6f8;">
+<body style="margin:0; padding:0; background-color:#ffffff; font-family:Arial, Helvetica, sans-serif; color:#333333;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;">
     <tr>
-      <td align="center" style="padding:24px 12px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px; background-color:#ffffff; border:1px solid #e2e8f0; border-radius:8px;">
+      <td align="center" style="padding:20px 10px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:580px; background-color:#ffffff; border:1px solid #e5e7eb; border-radius:6px;">
 
           <tr>
-            <td style="padding:28px 32px 16px 32px;">
-              <div style="font-size:20px; font-weight:700; color:#0f172a;">${e(displayCompany)}</div>
-              <div style="font-size:14px; color:#64748b; margin-top:4px;">Invoice #${e(displayNumber)}</div>
+            <td style="padding:24px 28px 12px 28px;">
+              <div style="font-size:20px; font-weight:bold; color:#111827;">${e(displayCompany)}</div>
+              <div style="font-size:14px; color:#4b5563; margin-top:2px;">Invoice #${e(displayNumber)}</div>
             </td>
           </tr>
 
           <tr>
-            <td style="padding:0 32px 16px 32px; font-size:15px; line-height:1.6; color:#334155;">
-              Hello,<br />Please find your invoice details below.
+            <td style="padding:0 28px 14px 28px; font-size:15px; line-height:1.5; color:#374151;">
+              Hello,<br /><br />
+              Please find attached your invoice <strong>#${e(displayNumber)}</strong> from ${e(displayCompany)}.
             </td>
           </tr>
 
           <tr>
-            <td style="padding:0 32px 16px 32px;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8fafc; border:1px solid #e2e8f0; border-radius:8px;">
+            <td style="padding:0 28px 16px 28px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f9fafb; border:1px solid #e5e7eb; border-radius:6px;">
                 <tr>
-                  <td align="center" style="padding:20px;">
-                    <div style="font-size:13px; color:#64748b;">Amount due</div>
-                    <div style="font-size:32px; font-weight:700; color:#0f172a; padding-top:4px;">${e(formattedAmount)}</div>
+                  <td align="center" style="padding:16px;">
+                    <div style="font-size:12px; text-transform:uppercase; color:#6b7280; font-weight:600; letter-spacing:0.5px;">Amount Due</div>
+                    <div style="font-size:30px; font-weight:bold; color:#111827; padding-top:4px;">${e(formattedAmount)}</div>
                   </td>
                 </tr>
               </table>
@@ -997,7 +995,7 @@ router.post(['/send-invoice', '/send-invoice-email'], async (req, res) => {
           </tr>
 
           <tr>
-            <td style="padding:0 32px 16px 32px;">
+            <td style="padding:0 28px 14px 28px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 ${row('Invoice number', '#' + e(displayNumber))}
                 ${row('Issue date', e(issueDate))}
@@ -1011,9 +1009,9 @@ router.post(['/send-invoice', '/send-invoice-email'], async (req, res) => {
           ${attachNote}
 
           <tr>
-            <td style="padding:18px 32px 26px 32px; border-top:1px solid #eef2f7; font-size:12px; line-height:1.6; color:#94a3b8; text-align:center;">
-              Questions about this invoice? Just reply to this email.<br />
-              &copy; ${new Date().getFullYear()} ${e(displayCompany)}${companyAddress ? '<br />' + e(companyAddress) : ''}
+            <td style="padding:16px 28px 24px 28px; border-top:1px solid #f3f4f6; font-size:13px; line-height:1.5; color:#6b7280; text-align:center;">
+              If you have any questions, please reply directly to this email.<br />
+              &copy; ${new Date().getFullYear()} ${e(displayCompany)}${companyAddress ? ' &bull; ' + e(companyAddress) : ''}
             </td>
           </tr>
 
